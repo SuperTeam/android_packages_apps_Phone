@@ -99,7 +99,7 @@ public class InCallTouchUi extends FrameLayout
 
     // Look up the various UI elements.
     private int mInCallStyle = (Settings.System.getInt(mContext.getContentResolver(),
-                Settings.System.IN_CALL_STYLE_PREF, 3));
+                Settings.System.IN_CALL_STYLE_PREF, 1));
 
     private boolean mRotaryHideArrows = (Settings.System.getInt(mContext.getContentResolver(),
                 Settings.System.LOCKSCREEN_ROTARY_HIDE_ARROWS, 0) == 1);
