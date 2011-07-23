@@ -1499,12 +1499,4 @@
     <string name="hide_hold_button">隱藏保留按鈕</string>
     <string name="hide_hold_button_sum">在通話中不顯示將目前通話保留的按鈕</string>
 
-    <!-- Phone goggles -->
-    <string name="toast_phone_goggles">現在不容許您撥出通話，請稍後再試一次。</string>
-    <string name="dialog_phone_goggles_title">通話已被封鎖</string>
-    <string name="dialog_phone_goggles_title_unlocked">通話已被授權</string>
-    <string name="dialog_phone_goggles_content">此時此刻撥出通話似乎並非明智之舉，您確定想要繼續嗎？</string>
-    <string name="dialog_phone_goggles_unauthorized">此刻撥出通話似非明智之舉。</string>
-    <string name="dialog_phone_goggles_ok">撥打</string>
-    <string name="dialog_phone_goggles_cancel">取消</string>
 </resources>

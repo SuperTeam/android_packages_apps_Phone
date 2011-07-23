@@ -713,12 +713,4 @@
        <item>Stuknij dwukrotnie by odrzucić</item>    
     </string-array>  
     
-    <!-- Phone goggles -->
-    <string name="toast_phone_goggles">Nie możesz teraz wykonywać połączeń. Spróbuj ponownie później.</string>
-    <string name="dialog_phone_goggles_title">Połączenie zablokowane</string>
-    <string name="dialog_phone_goggles_title_unlocked">Połączenie odblokowane</string>
-    <string name="dialog_phone_goggles_content">Wykonywanie połączeń w tej chwili może być nierozsądne. Czy napewno chcesz kontynuować?</string>
-    <string name="dialog_phone_goggles_unauthorized">Wykonywanie połączeń w tej chwili może być nierozsądne.</string>
-    <string name="dialog_phone_goggles_ok">Zadzwoń</string>
-    <string name="dialog_phone_goggles_cancel">Anuluj</string>
 </resources>

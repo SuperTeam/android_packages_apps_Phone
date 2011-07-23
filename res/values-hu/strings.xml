@@ -755,11 +755,4 @@
        <item>Befejezés érintésre</item>
        <item>Befejezés dupla érintésre</item>
     </string-array>
-    <string name="toast_phone_goggles">Ebben az időszakban nem engedélyezett a hívás-indítás. Kérem próbálkozzon meg később.</string>
-    <string name="dialog_phone_goggles_title">Hívás letiltva</string>
-    <string name="dialog_phone_goggles_title_unlocked">Hívás engedélyezve</string>
-    <string name="dialog_phone_goggles_content">Hívás-indítás nem engedélyezett ebben az időszakban. Biztos, hogy folytatni szeretné?</string>
-    <string name="dialog_phone_goggles_unauthorized">Hívás-indítás nem engedélyezett ebben az időszakban.</string>
-    <string name="dialog_phone_goggles_ok">Hívás</string>
-    <string name="dialog_phone_goggles_cancel">Mégsem</string>
 </resources>

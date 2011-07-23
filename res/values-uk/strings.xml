@@ -721,11 +721,4 @@
     </string-array>
     <string name="hide_hold_button">Прих. кн. “Утримати”</string>
     <string name="hide_hold_button_sum">Приховання кнопки, що дозволяє утримати поточний виклик.</string>
-    <string name="toast_phone_goggles">Ви не можете здійснювати виклики у цей час. Будь ласка, спробуйте пізніше.</string>
-    <string name="dialog_phone_goggles_title">Виклик блокований</string>
-    <string name="dialog_phone_goggles_title_unlocked">Виклик авторизований</string>
-    <string name="dialog_phone_goggles_content">Телефонний дзвінок може бути небажаним у цей час. Ви впевнені, що бажаєте продовжити?</string>
-    <string name="dialog_phone_goggles_unauthorized">Телефонний дзвінок може бути небажаним у цей час.</string>
-    <string name="dialog_phone_goggles_ok">Виклик</string>
-    <string name="dialog_phone_goggles_cancel">Скасувати</string>
 </resources>

@@ -750,12 +750,4 @@
        <item>Presiona para colgar</item>
        <item>Presiona dos veces para colgar</item>
     </string-array>
-        <!-- Phone goggles -->
-    <string name="toast_phone_goggles">No se le permite hacer llamadas de teléfono en este momento. Por favor, inténtelo de nuevo más tarde.</string>
-    <string name="dialog_phone_goggles_title">Llamada bloqueada</string>
-    <string name="dialog_phone_goggles_title_unlocked">Llamada autorizada</string>
-    <string name="dialog_phone_goggles_content">La realización de una llamada telefónica puede no ser aconsejable en este momento. ¿Está seguro que desea continuar?</string>
-    <string name="dialog_phone_goggles_unauthorized">La realización de una llamada telefónica puede no ser aconsejable en este momento.</string>
-    <string name="dialog_phone_goggles_ok">Llamar</string>
-    <string name="dialog_phone_goggles_cancel">Cancelar</string>
 </resources>

@@ -626,13 +626,6 @@
   <string name="trackball_answer_sum">לחץ על הכדור האופטי בכדי לענות לשיחה.</string>
   <string name="trackball_hangup">נתק בעזרת הכדור האופטי</string>
   <string name="trackball_hangup_sum">לחץ על כדור העקיבה לנתק את השיחה הנוכחית</string>
-  <string name="toast_phone_goggles">אינך מורשה לבצע שיחות בזמן זה. אנא נסה שוב מאוחר יותר</string>
-  <string name="dialog_phone_goggles_title">שיחה נחסמה</string>
-  <string name="dialog_phone_goggles_title_unlocked">שיחה מורשה</string>
-  <string name="dialog_phone_goggles_content">ביצוע שיחה כרגע עלול להיות לא מומלץ. האם אתה בטוח כי ברצונך להמשיך?</string>
-  <string name="dialog_phone_goggles_unauthorized">ביצוע שיחה כרגע עלול להיות לא מומלץ.</string>
-  <string name="dialog_phone_goggles_ok">התקשר</string>
-  <string name="dialog_phone_goggles_cancel">בטל</string>
   <string-array name="clir_display_values">
     <item>רשת ברירת מחדל</item>
     <item>הסתר מספר</item>

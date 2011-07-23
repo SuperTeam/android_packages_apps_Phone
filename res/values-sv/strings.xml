@@ -757,12 +757,4 @@
        <item>Dubbelklicka för att lägga på</item>    
     </string-array> 
 
-    <!-- Phone goggles -->
-    <string name="toast_phone_goggles">Du är inte tillåten att ringa samtal just nu. Försök igen senare.</string>
-    <string name="dialog_phone_goggles_title">Samtal blockerat</string>
-    <string name="dialog_phone_goggles_title_unlocked">Samtal godkänt</string>
-    <string name="dialog_phone_goggles_content">Det kan vara oklokt att ringa just nu. Är du säker på att du vill fortsätta?</string>
-    <string name="dialog_phone_goggles_unauthorized">Det kan vara oklokt att ringa just nu.</string>
-    <string name="dialog_phone_goggles_ok">Ring</string>
-    <string name="dialog_phone_goggles_cancel">Avbryt</string>
 </resources>

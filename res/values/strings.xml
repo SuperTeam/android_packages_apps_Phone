@@ -1532,12 +1532,4 @@
     <string name="hide_hold_button">Hide Hold button</string>  
     <string name="hide_hold_button_sum">Hide the button that puts the current call on hold.</string>
 
-    <!-- Phone goggles -->
-    <string name="toast_phone_goggles">You are not allowed to make phone calls at this time. Please try again later.</string>
-    <string name="dialog_phone_goggles_title">Call blocked</string>
-    <string name="dialog_phone_goggles_title_unlocked">Call authorized</string>
-    <string name="dialog_phone_goggles_content">Making a phone call may not be wise at this time. Are you sure you want to continue?</string>
-    <string name="dialog_phone_goggles_unauthorized">Making a phone call may not be wise at this time.</string>
-    <string name="dialog_phone_goggles_ok">Call</string>
-    <string name="dialog_phone_goggles_cancel">Cancel</string>
 </resources>

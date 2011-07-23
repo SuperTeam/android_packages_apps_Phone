@@ -753,14 +753,6 @@
        <item>Toque duplo para desligar</item>
     </string-array>
 
-    <!-- Phone goggles -->
-    <string name="toast_phone_goggles">Você não tem permissão para fazer ligações no momento. Tente mais tarde.</string>
-    <string name="dialog_phone_goggles_title">Ligação Bloqueada</string>
-    <string name="dialog_phone_goggles_title_unlocked">Ligação Autorizada</string>
-    <string name="dialog_phone_goggles_content">Fazer uma ligação neste momento pode não ser uma boa idéia. Tem certeza que deseja continuar?</string>
-    <string name="dialog_phone_goggles_unauthorized">Fazer uma ligação neste momento pode não ser uma boa idéia.</string>
-    <string name="dialog_phone_goggles_ok">Ligar</string>
-    <string name="dialog_phone_goggles_cancel">Cancelar</string>
     <string name="rotate_to_decline">Gire a esquerda para recusar</string>
     <string name="voicemail_notification_summary">Ativar notificações para (novas) mensagens de voz</string>
     <string name="voicemail_notification_title">Notificações de mensagem de voz</string>

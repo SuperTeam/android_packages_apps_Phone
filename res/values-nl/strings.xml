@@ -756,12 +756,4 @@
     <string name="voicemail_notification_title">Voicemail notificaties</string>
     <string name="voicemail_notification_summary">Notificaties voor nieuwe voicemails activeren.</string>
 
-    <!-- Phone goggles -->
-    <string name="toast_phone_goggles">Je bent op dit moment niet gemachtigd om te bellen, probeer het later opnieuw.</string>
-    <string name="dialog_phone_goggles_title">Oproep geblokkeerd</string>
-    <string name="dialog_phone_goggles_title_unlocked">Oproep toegestaan</string>
-    <string name="dialog_phone_goggles_content">Een gesprek starten is op dit moment mogelijk niet verstandig, weet je zeker dat je door wilt gaan?</string>
-    <string name="dialog_phone_goggles_unauthorized">Een gesprek starten is op dit moment mogelijk niet verstandig.</string>
-    <string name="dialog_phone_goggles_ok">Oproep</string>
-    <string name="dialog_phone_goggles_cancel">Annuleren</string>
 </resources>
