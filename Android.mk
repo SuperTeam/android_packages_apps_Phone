@@ -31,6 +31,3 @@ LOCAL_PACKAGE_NAME := Phone
 LOCAL_CERTIFICATE := platform
 
 include $(BUILD_PACKAGE)
-
-# Build the test package
-include $(call all-makefiles-under,$(LOCAL_PATH))
