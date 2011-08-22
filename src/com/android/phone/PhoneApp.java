@@ -140,7 +140,10 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
     public enum WakeState {
         SLEEP,
         PARTIAL,
-        FULL
+        FULL,
+	/*Creado para el control de wake lock para evitar la suspensión total en GeeksPhone ZERO, 
+	  hasta que se modifique el sensor de proximidad en el kernel*/
+	SLEEPEVER 
     }
 
     private static PhoneApp sMe;
@@ -190,7 +193,7 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
     // Last phone state seen by updatePhoneState()
     Phone.State mLastPhoneState = Phone.State.IDLE;
 
-    private WakeState mWakeState = WakeState.SLEEP;
+    private WakeState mWakeState = WakeState.SLEEPEVER;
     private ScreenTimeoutDuration mScreenTimeoutDuration = ScreenTimeoutDuration.DEFAULT;
     private boolean mIgnoreTouchUserActivity = false;
     private IBinder mPokeLockToken = new Binder();
@@ -203,6 +206,7 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
     private int mStatusBarDisableCount;
     private AccelerometerListener mAccelerometerListener;
     private int mOrientation = AccelerometerListener.ORIENTATION_UNKNOWN;
+    boolean locksReleased = true;
 
     // Broadcast receiver for various intent broadcasts (see onCreate())
     private final BroadcastReceiver mReceiver = new PhoneAppBroadcastReceiver();
@@ -981,8 +985,29 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
                         }
                         break;
                     case SLEEP:
+		    	/* Si el dispositivo tiene problemas con el sensor de proximidad con la pantalla apagada, 
+			   como es el caso de GeeksPhone ZERO */
+			if(SystemProperties.getBoolean("ro.prox.no.suspend.in.call", false))
+			{
+				if(locksReleased)
+				{		
+					// acquire the processor wake lock, and release the FULL
+					// lock if it is being held.
+					mPartialWakeLock.acquire();
+					if (mWakeLock.isHeld()) {
+					    mWakeLock.release();
+					}
+					locksReleased = false;
+					break;
+				}
+				else
+				{
+					locksReleased = true;
+				}
+			}
+		    case SLEEPEVER:
                     default:
-                        // release both the PARTIAL and FULL locks.
+			// release both the PARTIAL and FULL locks.
                         if (mWakeLock.isHeld()) {
                             mWakeLock.release();
                         }
@@ -1002,7 +1027,7 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
      */
     /* package */ void wakeUpScreen() {
         synchronized (this) {
-            if (mWakeState == WakeState.SLEEP) {
+            if (mWakeState == WakeState.SLEEP || mWakeState == WakeState.SLEEPEVER) {
                 if (DBG) Log.d(LOG_TAG, "pulse screen lock");
                 try {
                     mPowerManagerService.userActivityWithForce(SystemClock.uptimeMillis(), false, true);

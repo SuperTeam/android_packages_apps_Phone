@@ -482,7 +482,6 @@ public class CallNotifier extends Handler
         // - do this before showing the incoming call panel
         if (PhoneUtils.isRealIncomingCall(state)) {
             startIncomingCallQuery(c);
-            //startSensor();
         } else {
             if (mSettings.mVibCallWaiting) {
                 mApplication.vibrate(200,300,500);
@@ -946,8 +945,8 @@ public class CallNotifier extends Handler
         }
     }
 
-    private void onDisconnect(AsyncResult r) {
-        if (VDBG) log("onDisconnect()...  CallManager state: " + mCM.getState());
+    private void onDisconnect(AsyncResult r) {        
+	if (VDBG) log("onDisconnect()...  CallManager state: " + mCM.getState());
 
         Connection c = (Connection) r.result;
         if (DBG && c != null) {
@@ -1203,7 +1202,7 @@ public class CallNotifier extends Handler
                 if (!mApplication.isShowingCallScreen()) {
                     if (VDBG) log("- NOT showing in-call screen; releasing wake locks!");
                     mApplication.setScreenTimeout(PhoneApp.ScreenTimeoutDuration.DEFAULT);
-                    mApplication.requestWakeState(PhoneApp.WakeState.SLEEP);
+                    mApplication.requestWakeState(PhoneApp.WakeState.SLEEPEVER);
                 } else {
                     if (VDBG) log("- still showing in-call screen; not releasing wake locks.");
                 }
@@ -1269,53 +1268,7 @@ public class CallNotifier extends Handler
         if (VDBG) log("onCfiChanged(): " + visible);
         NotificationMgr.getDefault().updateCfi(visible);
     }
-/*
-    private SensorManager mSensorManager;
-    private boolean mSensorRunning = false;
-    private TurnListener mTurnListener = new TurnListener();
 
-    class TurnListener implements SensorEventListener {
-        int count = 0;
-        public void onSensorChanged(SensorEvent event) {
-            if (++count < 5) {  // omit the first 5 times
-                return;
-            }
-            float[] values = event.values;
-            // Log.i("==="," @ " + values[1] + " : " + values[2]);
-            if (count <= 7) {   // test 5 to 7 times
-                if (Math.abs(values[1]) > 15 || Math.abs(values[2]) > 20) {
-                    // Log.i("===","force stop sensor! @ " + values[1] + " : " + values[2]);
-                    stopSensor();
-                }
-            } else {
-                if (Math.abs(values[1]) > 165 && Math.abs(values[2]) < 20) {
-                    if (DBG) log("turn over!");
-                    silenceRinger();
-                }
-            }
-        }
-        public void onAccuracyChanged(Sensor sensor, int accuracy) {}
-    };
-
-    void stopSensor() {
-        if (mSensorRunning) {
-            if (DBG) log("stop sensor!");
-            mTurnListener.count = 0;
-            mSensorManager.unregisterListener(mTurnListener);
-            mSensorRunning = false;
-        }
-    }
-
-
-    void startSensor() {
-        if (mSettings.mTurnSilence && !mSensorRunning) {
-            if (DBG) log("startSensor()...");
-            mSensorManager.registerListener(mTurnListener, mSensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION),
-                    SensorManager.SENSOR_DELAY_NORMAL);
-            mSensorRunning = true;
-        }
-    }
-*/
     /**
      * Indicates whether or not this ringer is ringing.
      */
@@ -1330,8 +1283,6 @@ public class CallNotifier extends Handler
     void silenceRinger() {
         mSilentRingerRequested = true;
         if (DBG) log("stopRing()... (silenceRinger)");
-        // Log.i("===","silence sensor!");
-        //stopSensor();
         mRinger.stopRing();
     }
 
@@ -1615,7 +1566,7 @@ public class CallNotifier extends Handler
             // we need to defer the resetAudioStateAfterDisconnect() call
             // till the tone finishes playing.)
             if (mCM.getState() == Phone.State.IDLE) {
-                resetAudioStateAfterDisconnect();
+		resetAudioStateAfterDisconnect();
             }
         }
 
