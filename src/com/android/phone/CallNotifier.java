@@ -16,18 +16,6 @@
 
 package com.android.phone;
 
-import com.android.internal.telephony.Call;
-import com.android.internal.telephony.CallerInfo;
-import com.android.internal.telephony.CallerInfoAsyncQuery;
-import com.android.internal.telephony.cdma.CdmaCallWaitingNotification;
-import com.android.internal.telephony.cdma.SignalToneUtil;
-import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaDisplayInfoRec;
-import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaSignalInfoRec;
-import com.android.internal.telephony.Connection;
-import com.android.internal.telephony.Phone;
-import com.android.internal.telephony.PhoneBase;
-import com.android.internal.telephony.CallManager;
-
 import android.app.ActivityManagerNative;
 import android.content.Context;
 import android.media.AudioManager;
@@ -37,10 +25,9 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.PowerManager;
 import android.os.RemoteException;
-import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Vibrator;
-import android.provider.CallLog;
+import android.preference.PreferenceManager;
 import android.provider.CallLog.Calls;
 import android.provider.Settings;
 import android.telephony.PhoneNumberUtils;
@@ -50,11 +37,17 @@ import android.text.TextUtils;
 import android.util.EventLog;
 import android.util.Log;
 
-import android.preference.PreferenceManager;
-import android.hardware.SensorManager;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorEvent;
-import android.hardware.Sensor;
+import com.android.internal.telephony.Call;
+import com.android.internal.telephony.CallManager;
+import com.android.internal.telephony.CallerInfo;
+import com.android.internal.telephony.CallerInfoAsyncQuery;
+import com.android.internal.telephony.Connection;
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneBase;
+import com.android.internal.telephony.cdma.CdmaCallWaitingNotification;
+import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaDisplayInfoRec;
+import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaSignalInfoRec;
+import com.android.internal.telephony.cdma.SignalToneUtil;
 
 
 /**
@@ -66,8 +59,7 @@ import android.hardware.Sensor;
 public class CallNotifier extends Handler
         implements CallerInfoAsyncQuery.OnQueryCompleteListener {
     private static final String LOG_TAG = "CallNotifier";
-    private static final boolean DBG =
-            (PhoneApp.DBG_LEVEL >= 1) && (SystemProperties.getInt("ro.debuggable", 0) == 1);
+    private static final boolean DBG = (PhoneApp.DBG_LEVEL >= 1);
     private static final boolean VDBG = (PhoneApp.DBG_LEVEL >= 2);
 
     // Maximum time we allow the CallerInfo query to run,
@@ -323,10 +315,6 @@ public class CallNotifier extends Handler
                 CdmaDisplayInfo.dismissDisplayInfoRecord();
                 break;
 
-            case EVENT_OTA_PROVISION_CHANGE:
-                mApplication.handleOtaEvents(msg);
-                break;
-
             case PHONE_ENHANCED_VP_ON:
                 if (DBG) log("PHONE_ENHANCED_VP_ON...");
                 if (!mCdmaVoicePrivacyState) {
@@ -403,25 +391,6 @@ public class CallNotifier extends Handler
                 if (DBG) Log.i(LOG_TAG, "Reject the incoming call in BL:" + number);
             } catch (Exception e) {}  // ignore
             return;
-        }
-
-        // Incoming calls are totally ignored if OTA call is active
-        if (TelephonyCapabilities.supportsOtasp(phone)) {
-            boolean activateState = (mApplication.cdmaOtaScreenState.otaScreenState
-                    == OtaUtils.CdmaOtaScreenState.OtaScreenState.OTA_STATUS_ACTIVATION);
-            boolean dialogState = (mApplication.cdmaOtaScreenState.otaScreenState
-                    == OtaUtils.CdmaOtaScreenState.OtaScreenState.OTA_STATUS_SUCCESS_FAILURE_DLG);
-            boolean spcState = mApplication.cdmaOtaProvisionData.inOtaSpcState;
-
-            if (spcState) {
-                Log.i(LOG_TAG, "CallNotifier: rejecting incoming call: OTA call is active");
-                PhoneUtils.hangupRingingCall(ringing);
-                return;
-            } else if (activateState || dialogState) {
-                if (dialogState) mApplication.dismissOtaDialogs();
-                mApplication.clearOtaState();
-                mApplication.clearInCallScreenMode();
-            }
         }
 
         if (c == null) {
@@ -1038,11 +1007,6 @@ public class CallNotifier extends Handler
             } else if (cause == Connection.DisconnectCause.CONGESTION) {
                 if (DBG) log("- need to play CONGESTION tone!");
                 toneToPlay = InCallTonePlayer.TONE_CONGESTION;
-            } else if (((cause == Connection.DisconnectCause.NORMAL)
-                    || (cause == Connection.DisconnectCause.LOCAL))
-                    && (mApplication.isOtaCallInActiveState())) {
-                if (DBG) log("- need to play OTA_CALL_END tone!");
-                toneToPlay = InCallTonePlayer.TONE_OTA_CALL_END;
             } else if (cause == Connection.DisconnectCause.CDMA_REORDER) {
                 if (DBG) log("- need to play CDMA_REORDER tone!");
                 toneToPlay = InCallTonePlayer.TONE_REORDER;
@@ -1154,13 +1118,10 @@ public class CallNotifier extends Handler
                 final boolean shouldNotlogEmergencyNumber =
                         (phone.getPhoneType() == Phone.PHONE_TYPE_CDMA);
 
-                // Don't call isOtaSpNumber on GSM phones.
-                final boolean isOtaNumber = (phone.getPhoneType() == Phone.PHONE_TYPE_CDMA)
-                        && phone.isOtaSpNumber(number);
                 final boolean isEmergencyNumber = PhoneNumberUtils.isEmergencyNumber(number);
 
                 // Don't put OTA or CDMA Emergency calls into call log
-                if (!(isOtaNumber || isEmergencyNumber && shouldNotlogEmergencyNumber)) {
+                if (!(isEmergencyNumber && shouldNotlogEmergencyNumber)) {
                     CallLogAsync.AddCallArgs args =
                             new CallLogAsync.AddCallArgs(
                                 mApplication, ci, logNumber, presentation,
@@ -1269,53 +1230,7 @@ public class CallNotifier extends Handler
         if (VDBG) log("onCfiChanged(): " + visible);
         NotificationMgr.getDefault().updateCfi(visible);
     }
-/*
-    private SensorManager mSensorManager;
-    private boolean mSensorRunning = false;
-    private TurnListener mTurnListener = new TurnListener();
 
-    class TurnListener implements SensorEventListener {
-        int count = 0;
-        public void onSensorChanged(SensorEvent event) {
-            if (++count < 5) {  // omit the first 5 times
-                return;
-            }
-            float[] values = event.values;
-            // Log.i("==="," @ " + values[1] + " : " + values[2]);
-            if (count <= 7) {   // test 5 to 7 times
-                if (Math.abs(values[1]) > 15 || Math.abs(values[2]) > 20) {
-                    // Log.i("===","force stop sensor! @ " + values[1] + " : " + values[2]);
-                    stopSensor();
-                }
-            } else {
-                if (Math.abs(values[1]) > 165 && Math.abs(values[2]) < 20) {
-                    if (DBG) log("turn over!");
-                    silenceRinger();
-                }
-            }
-        }
-        public void onAccuracyChanged(Sensor sensor, int accuracy) {}
-    };
-
-    void stopSensor() {
-        if (mSensorRunning) {
-            if (DBG) log("stop sensor!");
-            mTurnListener.count = 0;
-            mSensorManager.unregisterListener(mTurnListener);
-            mSensorRunning = false;
-        }
-    }
-
-
-    void startSensor() {
-        if (mSettings.mTurnSilence && !mSensorRunning) {
-            if (DBG) log("startSensor()...");
-            mSensorManager.registerListener(mTurnListener, mSensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION),
-                    SensorManager.SENSOR_DELAY_NORMAL);
-            mSensorRunning = true;
-        }
-    }
-*/
     /**
      * Indicates whether or not this ringer is ringing.
      */
@@ -1330,8 +1245,6 @@ public class CallNotifier extends Handler
     void silenceRinger() {
         mSilentRingerRequested = true;
         if (DBG) log("stopRing()... (silenceRinger)");
-        // Log.i("===","silence sensor!");
-        //stopSensor();
         mRinger.stopRing();
     }
 
@@ -1385,7 +1298,6 @@ public class CallNotifier extends Handler
         public static final int TONE_CDMA_DROP = 9;
         public static final int TONE_OUT_OF_SERVICE = 10;
         public static final int TONE_REDIAL = 11;
-        public static final int TONE_OTA_CALL_END = 12;
         public static final int TONE_RING_BACK = 13;
         public static final int TONE_UNOBTAINABLE_NUMBER = 14;
 
@@ -1457,18 +1369,6 @@ public class CallNotifier extends Handler
                     toneType = ToneGenerator.TONE_PROP_PROMPT;
                     toneVolume = TONE_RELATIVE_VOLUME_HIPRI;
                     toneLengthMillis = 200;
-                    break;
-                case TONE_OTA_CALL_END:
-                    if (mApplication.cdmaOtaConfigData.otaPlaySuccessFailureTone ==
-                            OtaUtils.OTA_PLAY_SUCCESS_FAILURE_TONE_ON) {
-                        toneType = ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD;
-                        toneVolume = TONE_RELATIVE_VOLUME_HIPRI;
-                        toneLengthMillis = 750;
-                    } else {
-                        toneType = ToneGenerator.TONE_PROP_PROMPT;
-                        toneVolume = TONE_RELATIVE_VOLUME_HIPRI;
-                        toneLengthMillis = 200;
-                    }
                     break;
                 case TONE_VOICE_PRIVACY:
                     toneType = ToneGenerator.TONE_CDMA_ALERT_NETWORK_LITE;

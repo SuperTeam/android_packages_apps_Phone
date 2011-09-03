@@ -85,33 +85,6 @@ public class TelephonyCapabilities {
     }
 
     /**
-     * Return true if the current phone supports Over The Air Service
-     * Provisioning (OTASP)
-     *
-     * Currently this is assumed to be true for CDMA phones, and false
-     * otherwise.
-     *
-     * TODO: This capability should really be exposed by the telephony
-     * layer, since it depends on the underlying telephony technology.
-     *
-     * TODO: Watch out: this is also highly carrier-specific, since the
-     * OTA procedure is different from one carrier to the next, *and* the
-     * different carriers may want very different onscreen UI as well.
-     * The procedure may even be different for different devices with the
-     * same carrier.
-     *
-     * So we eventually will need a much more flexible, pluggable design.
-     * This method here is just a placeholder to reduce hardcoded
-     * "if (CDMA)" checks sprinkled throughout the rest of the phone app.
-     *
-     * TODO: consider using the term "OTASP" rather "OTA" everywhere in the
-     * phone app, since OTA can also mean over-the-air software updates.
-     */
-    /* package */ static boolean supportsOtasp(Phone phone) {
-        return (phone.getPhoneType() == Phone.PHONE_TYPE_CDMA);
-    }
-
-    /**
      * Return true if the current phone can retrieve the voice message count.
      *
      * Currently this is assumed to be true on CDMA phones and false otherwise.

@@ -17,8 +17,10 @@
 package com.android.phone;
 
 import android.app.Activity;
+import android.app.AlarmManager;
 import android.app.Application;
 import android.app.KeyguardManager;
+import android.app.PendingIntent;
 import android.app.ProgressDialog;
 import android.app.StatusBarManager;
 import android.bluetooth.BluetoothAdapter;
@@ -28,7 +30,6 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.res.Configuration;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.AsyncResult;
@@ -42,14 +43,12 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
-import android.os.SystemProperties;
+import android.os.Vibrator;
 import android.preference.PreferenceManager;
 import android.provider.Settings.System;
 import android.telephony.ServiceState;
-import android.util.Config;
 import android.util.Log;
 import android.view.KeyEvent;
-import android.widget.Toast;
 
 import com.android.internal.telephony.Call;
 import com.android.internal.telephony.CallManager;
@@ -58,43 +57,19 @@ import com.android.internal.telephony.MmiCode;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneFactory;
 import com.android.internal.telephony.TelephonyIntents;
-import com.android.internal.telephony.cdma.EriInfo;
 import com.android.internal.telephony.cdma.TtyIntent;
-import com.android.internal.telephony.sip.SipPhoneFactory;
-import com.android.phone.OtaUtils.CdmaOtaScreenState;
 import com.android.server.sip.SipService;
-
-import android.os.Vibrator;
-import android.app.AlarmManager;
-import android.app.PendingIntent;
 
 /**
  * Top-level Application class for the Phone app.
  */
-public class PhoneApp extends Application implements AccelerometerListener.OrientationListener {
+public class PhoneApp extends Application {
     /* package */ static final String LOG_TAG = "PhoneApp";
 
-    /**
-     * Phone app-wide debug level:
-     *   0 - no debug logging
-     *   1 - normal debug logging if ro.debuggable is set (which is true in
-     *       "eng" and "userdebug" builds but not "user" builds)
-     *   2 - ultra-verbose debug logging
-     *
-     * Most individual classes in the phone app have a local DBG constant,
-     * typically set to
-     *   (PhoneApp.DBG_LEVEL >= 1) && (SystemProperties.getInt("ro.debuggable", 0) == 1)
-     * or else
-     *   (PhoneApp.DBG_LEVEL >= 2)
-     * depending on the desired verbosity.
-     *
-     * ***** DO NOT SUBMIT WITH DBG_LEVEL > 0 *************
-     */
     /* package */ static final int DBG_LEVEL = 0;
 
-    private static final boolean DBG =
-            (PhoneApp.DBG_LEVEL >= 1) && (SystemProperties.getInt("ro.debuggable", 0) == 1);
-    private static final boolean VDBG = (PhoneApp.DBG_LEVEL >= 2);
+    private static final boolean DBG = false;
+    private static final boolean VDBG = false;
 
     // Message codes; see mHandler below.
     private static final int EVENT_SIM_NETWORK_LOCKED = 3;
@@ -104,7 +79,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
     private static final int EVENT_DATA_ROAMING_DISCONNECTED = 10;
     private static final int EVENT_DATA_ROAMING_OK = 11;
     private static final int EVENT_UNSOL_CDMA_INFO_RECORD = 12;
-    private static final int EVENT_DOCK_STATE_CHANGED = 13;
     private static final int EVENT_TTY_PREFERRED_MODE_CHANGED = 14;
     private static final int EVENT_TTY_MODE_GET = 15;
     private static final int EVENT_TTY_MODE_SET = 16;
@@ -156,7 +130,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
     int mBluetoothHeadsetState = BluetoothHeadset.STATE_ERROR;
     int mBluetoothHeadsetAudioState = BluetoothHeadset.STATE_ERROR;
     boolean mShowBluetoothIndication = false;
-    static int mDockState = Intent.EXTRA_DOCK_STATE_UNDOCKED;
 
     // Internal PhoneApp Call state tracker
     CdmaPhoneCallState cdmaPhoneCallState;
@@ -180,13 +153,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
     // mReceiver.onReceive().
     private boolean mIsHeadsetPlugged;
 
-    // True if the keyboard is currently *not* hidden
-    // Gets updated whenever there is a Configuration change
-    private boolean mIsHardKeyboardOpen;
-
-    // True if we are beginning a call, but the phone state has not changed yet
-    private boolean mBeginningCall;
-
     // Last phone state seen by updatePhoneState()
     Phone.State mLastPhoneState = Phone.State.IDLE;
 
@@ -197,12 +163,10 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
     private IPowerManager mPowerManagerService;
     private PowerManager.WakeLock mWakeLock;
     private PowerManager.WakeLock mPartialWakeLock;
-    private PowerManager.WakeLock mProximityWakeLock;
     private KeyguardManager mKeyguardManager;
     private StatusBarManager mStatusBarManager;
     private int mStatusBarDisableCount;
     private AccelerometerListener mAccelerometerListener;
-    private int mOrientation = AccelerometerListener.ORIENTATION_UNKNOWN;
 
     // Broadcast receiver for various intent broadcasts (see onCreate())
     private final BroadcastReceiver mReceiver = new PhoneAppBroadcastReceiver();
@@ -212,17 +176,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
 
     /** boolean indicating restoring mute state on InCallScreen.onResume() */
     private boolean mShouldRestoreMuteOnInCallResume;
-
-    // Following are the CDMA OTA information Objects used during OTA Call.
-    // cdmaOtaProvisionData object store static OTA information that needs
-    // to be maintained even during Slider open/close scenarios.
-    // cdmaOtaConfigData object stores configuration info to control visiblity
-    // of each OTA Screens.
-    // cdmaOtaScreenState object store OTA Screen State information.
-    public OtaUtils.CdmaOtaProvisionData cdmaOtaProvisionData;
-    public OtaUtils.CdmaOtaConfigData cdmaOtaConfigData;
-    public OtaUtils.CdmaOtaScreenState cdmaOtaScreenState;
-    public OtaUtils.CdmaOtaInCallScreenUiState cdmaOtaInCallScreenUiState;
 
     // TTY feature enabled on this platform
     private boolean mTtyEnabled;
@@ -361,9 +314,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
                             }
                         }
                     }
-                    // Update the Proximity sensor based on headset state
-                    updateProximitySensorMode(phoneState);
-
                     // Force TTY state update according to new headset state
                     if (mTtyEnabled) {
                         sendMessage(obtainMessage(EVENT_TTY_PREFERRED_MODE_CHANGED, 0));
@@ -392,28 +342,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
                 case EVENT_UNSOL_CDMA_INFO_RECORD:
                     //TODO: handle message here;
                     break;
-
-                case EVENT_DOCK_STATE_CHANGED:
-                    // If the phone is docked/undocked during a call, and no wired or BT headset
-                    // is connected: turn on/off the speaker accordingly.
-                    boolean inDockMode = false;
-                    if (mDockState == Intent.EXTRA_DOCK_STATE_DESK ||
-                            mDockState == Intent.EXTRA_DOCK_STATE_CAR) {
-                        inDockMode = true;
-                    }
-                    if (VDBG) Log.d(LOG_TAG, "received EVENT_DOCK_STATE_CHANGED. Phone inDock = "
-                            + inDockMode);
-
-                    phoneState = mCM.getState();
-                    if (phoneState == Phone.State.OFFHOOK &&
-                            !isHeadsetPlugged() &&
-                            !(mBtHandsfree != null && mBtHandsfree.isAudioOn())) {
-                        PhoneUtils.turnOnSpeaker(getApplicationContext(), inDockMode, true);
-
-                        if (mInCallScreen != null) {
-                            mInCallScreen.requestUpdateTouchUi();
-                        }
-                    }
 
                 case EVENT_TTY_PREFERRED_MODE_CHANGED:
                     // TTY mode is only applied if a headset is connected
@@ -491,18 +419,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
             // lock used to keep the processor awake, when we don't care for the display.
             mPartialWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK
                     | PowerManager.ON_AFTER_RELEASE, LOG_TAG);
-            // Wake lock used to control proximity sensor behavior.
-            if ((pm.getSupportedWakeLockFlags()
-                 & PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK) != 0x0) {
-                mProximityWakeLock =
-                        pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, LOG_TAG);
-            }
-            if (DBG) Log.d(LOG_TAG, "onCreate: mProximityWakeLock: " + mProximityWakeLock);
-
-            // create mAccelerometerListener only if we are using the proximity sensor
-            if (proximitySensorModeEnabled()) {
-                mAccelerometerListener = new AccelerometerListener(this, this);
-            }
 
             mKeyguardManager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
             mStatusBarManager = (StatusBarManager) getSystemService(Context.STATUS_BAR_SERVICE);
@@ -537,7 +453,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
             intentFilter.addAction(BluetoothHeadset.ACTION_AUDIO_STATE_CHANGED);
             intentFilter.addAction(TelephonyIntents.ACTION_ANY_DATA_CONNECTION_STATE_CHANGED);
             intentFilter.addAction(Intent.ACTION_HEADSET_PLUG);
-            intentFilter.addAction(Intent.ACTION_DOCK_EVENT);
             intentFilter.addAction(Intent.ACTION_BATTERY_LOW);
             intentFilter.addAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
             intentFilter.addAction(TelephonyIntents.ACTION_RADIO_TECHNOLOGY_CHANGED);
@@ -573,15 +488,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
             // audio-mode-related state of our own) is initialized
             // correctly, given the current state of the phone.
             PhoneUtils.setAudioMode(mCM);
-        }
-
-        boolean phoneIsCdma = (phone.getPhoneType() == Phone.PHONE_TYPE_CDMA);
-
-        if (phoneIsCdma) {
-            cdmaOtaProvisionData = new OtaUtils.CdmaOtaProvisionData();
-            cdmaOtaConfigData = new OtaUtils.CdmaOtaConfigData();
-            cdmaOtaScreenState = new OtaUtils.CdmaOtaScreenState();
-            cdmaOtaInCallScreenUiState = new OtaUtils.CdmaOtaInCallScreenUiState();
         }
 
         // XXX pre-load the SimProvider so that it's ready
@@ -622,19 +528,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
                                       CallFeaturesSetting.HAC_VAL_ON :
                                       CallFeaturesSetting.HAC_VAL_OFF);
         }
-    }
-
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        if (newConfig.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO) {
-            mIsHardKeyboardOpen = true;
-        } else {
-            mIsHardKeyboardOpen = false;
-        }
-
-        // Update the Proximity sensor based on keyboard state
-        updateProximitySensorMode(mCM.getState());
-        super.onConfigurationChanged(newConfig);
     }
 
     /**
@@ -699,15 +592,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
         return InCallScreen.class.getName();
     }
 
-    /**
-     * Starts the InCallScreen Activity.
-     */
-    private void displayCallScreen() {
-        if (VDBG) Log.d(LOG_TAG, "displayCallScreen()...");
-        startActivity(createInCallIntent());
-        Profiler.callScreenRequested();
-    }
-
     boolean isSimPinEnabled() {
         return mIsSimPinEnabled;
     }
@@ -751,44 +635,9 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
      */
     void dismissCallScreen() {
         if (mInCallScreen != null) {
-            if ((phone.getPhoneType() == Phone.PHONE_TYPE_CDMA) &&
-                    (mInCallScreen.isOtaCallInActiveState()
-                    || mInCallScreen.isOtaCallInEndState()
-                    || ((cdmaOtaScreenState != null)
-                    && (cdmaOtaScreenState.otaScreenState
-                            != CdmaOtaScreenState.OtaScreenState.OTA_STATUS_UNDEFINED)))) {
-                // TODO: During OTA Call, display should not become dark to
-                // allow user to see OTA UI update. Phone app needs to hold
-                // a SCREEN_DIM_WAKE_LOCK wake lock during the entire OTA call.
-                wakeUpScreen();
-                // If InCallScreen is not in foreground we resume it to show the OTA call end screen
-                // Fire off the InCallScreen intent
-                displayCallScreen();
-
-                mInCallScreen.handleOtaCallEnd();
-                return;
-            } else {
-                mInCallScreen.finish();
-            }
+            mInCallScreen.finish();
         }
     }
-
-    /**
-     * Handle OTA events
-     *
-     * When OTA call is active and display becomes dark, then CallNotifier will
-     * handle OTA Events by calling this api which then calls OtaUtil function.
-     */
-    void handleOtaEvents(Message msg) {
-
-        if (DBG) Log.d(LOG_TAG, "Enter handleOtaEvents");
-        if ((mInCallScreen != null) && (!isShowingCallScreen())) {
-            if (mInCallScreen.otaUtils != null) {
-                mInCallScreen.otaUtils.onOtaProvisionStatusChanged((AsyncResult) msg.obj);
-            }
-        }
-    }
-
 
     /**
      * Sets the activity responsible for un-PUK-blocking the device
@@ -884,10 +733,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
         // avoid triggering the userActivity calls in
         // PowerManagerService.setPokeLock().
         if (duration == mScreenTimeoutDuration) {
-            return;
-        }
-        // stick with default timeout if we are using the proximity sensor
-        if (proximitySensorModeEnabled()) {
             return;
         }
         mScreenTimeoutDuration = duration;
@@ -1163,114 +1008,17 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
     }
 
     /**
-     * Set when a new outgoing call is beginning, so we can update
-     * the proximity sensor state.
-     * Cleared when the InCallScreen is no longer in the foreground,
-     * in case the call fails without changing the telephony state.
-     */
-    /* package */ void setBeginningCall(boolean beginning) {
-        // Note that we are beginning a new call, for proximity sensor support
-        mBeginningCall = beginning;
-        // Update the Proximity sensor based on mBeginningCall state
-        updateProximitySensorMode(mCM.getState());
-    }
-
-    /**
-     * Updates the wake lock used to control proximity sensor behavior,
-     * based on the current state of the phone.  This method is called
-     * from the CallNotifier on any phone state change.
-     *
-     * On devices that have a proximity sensor, to avoid false touches
-     * during a call, we hold a PROXIMITY_SCREEN_OFF_WAKE_LOCK wake lock
-     * whenever the phone is off hook.  (When held, that wake lock causes
-     * the screen to turn off automatically when the sensor detects an
-     * object close to the screen.)
-     *
-     * This method is a no-op for devices that don't have a proximity
-     * sensor.
-     *
-     * Note this method doesn't care if the InCallScreen is the foreground
-     * activity or not.  That's because we want the proximity sensor to be
-     * enabled any time the phone is in use, to avoid false cheek events
-     * for whatever app you happen to be running.
-     *
-     * Proximity wake lock will *not* be held if any one of the
-     * conditions is true while on a call:
-     * 1) If the audio is routed via Bluetooth
-     * 2) If a wired headset is connected
-     * 3) if the speaker is ON
-     * 4) If the slider is open(i.e. the hardkeyboard is *not* hidden)
-     *
-     * @param state current state of the phone (see {@link Phone#State})
-     */
-    /* package */ void updateProximitySensorMode(Phone.State state) {
-        if (VDBG) Log.d(LOG_TAG, "updateProximitySensorMode: state = " + state);
-
-        if (proximitySensorModeEnabled()) {
-            synchronized (mProximityWakeLock) {
-                // turn proximity sensor off and turn screen on immediately if
-                // we are using a headset, the keyboard is open, or the device
-                // is being held in a horizontal position.
-                boolean screenOnImmediately = (isHeadsetPlugged()
-                            || PhoneUtils.isSpeakerOn(this)
-                            || ((mBtHandsfree != null) && mBtHandsfree.isAudioOn())
-                            || mIsHardKeyboardOpen);
-                // We do not keep the screen off when we are horizontal, but we do not force it
-                // on when we become horizontal until the proximity sensor goes negative.
-                boolean horizontal = (mOrientation == AccelerometerListener.ORIENTATION_HORIZONTAL);
-
-                if (((state == Phone.State.OFFHOOK) || mBeginningCall) &&
-                        !screenOnImmediately && !horizontal) {
-                    // Phone is in use!  Arrange for the screen to turn off
-                    // automatically when the sensor detects a close object.
-                    if (!mProximityWakeLock.isHeld()) {
-                        if (DBG) Log.d(LOG_TAG, "updateProximitySensorMode: acquiring...");
-                        mProximityWakeLock.acquire();
-                    } else {
-                        if (VDBG) Log.d(LOG_TAG, "updateProximitySensorMode: lock already held.");
-                    }
-                } else {
-                    // Phone is either idle, or ringing.  We don't want any
-                    // special proximity sensor behavior in either case.
-                    if (mProximityWakeLock.isHeld()) {
-                        if (DBG) Log.d(LOG_TAG, "updateProximitySensorMode: releasing...");
-                        // Wait until user has moved the phone away from his head if we are
-                        // releasing due to the phone call ending.
-                        // Qtherwise, turn screen on immediately
-                        int flags =
-                            (screenOnImmediately ? 0 : PowerManager.WAIT_FOR_PROXIMITY_NEGATIVE);
-                        mProximityWakeLock.release(flags);
-                    } else {
-                        if (VDBG) {
-                            Log.d(LOG_TAG, "updateProximitySensorMode: lock already released.");
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    public void orientationChanged(int orientation) {
-        mOrientation = orientation;
-        updateProximitySensorMode(mCM.getState());
-    }
-
-    /**
      * Notifies the phone app when the phone state changes.
      * Currently used only for proximity sensor support.
      */
     /* package */ void updatePhoneState(Phone.State state) {
         if (state != mLastPhoneState) {
             mLastPhoneState = state;
-            updateProximitySensorMode(state);
             if (mAccelerometerListener != null) {
                 // use accelerometer to augment proximity sensor when in call
-                mOrientation = AccelerometerListener.ORIENTATION_UNKNOWN;
                 mAccelerometerListener.enable(!mSettings.mAlwaysProximity &&
                         state == Phone.State.OFFHOOK);
             }
-            // clear our beginning call flag
-            mBeginningCall = false;
             // While we are in call, the in-call screen should dismiss the keyguard.
             // This allows the user to press Home to go directly home without going through
             // an insecure lock screen.
@@ -1284,14 +1032,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
 
     /* package */ Phone.State getPhoneState() {
         return mLastPhoneState;
-    }
-
-    /**
-     * @return true if this device supports the "proximity sensor
-     * auto-lock" feature while in-call (see updateProximitySensorMode()).
-     */
-    /* package */ boolean proximitySensorModeEnabled() {
-        return (mProximityWakeLock != null);
     }
 
     KeyguardManager getKeyguardManager() {
@@ -1312,22 +1052,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
             cdmaPhoneCallState = new CdmaPhoneCallState();
             cdmaPhoneCallState.CdmaPhoneCallStateInit();
 
-            //create instances of CDMA OTA data classes
-            if (cdmaOtaProvisionData == null) {
-                cdmaOtaProvisionData = new OtaUtils.CdmaOtaProvisionData();
-            }
-            if (cdmaOtaConfigData == null) {
-                cdmaOtaConfigData = new OtaUtils.CdmaOtaConfigData();
-            }
-            if (cdmaOtaScreenState == null) {
-                cdmaOtaScreenState = new OtaUtils.CdmaOtaScreenState();
-            }
-            if (cdmaOtaInCallScreenUiState == null) {
-                cdmaOtaInCallScreenUiState = new OtaUtils.CdmaOtaInCallScreenUiState();
-            }
-        } else {
-            //Clean up OTA data in GSM/UMTS. It is valid only for CDMA
-            clearOtaState();
         }
 
         ringer.updateRingerContextAfterRadioTechnologyChange(this.phone);
@@ -1395,9 +1119,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
             if (DBG) Log.d (LOG_TAG, "- updating in-call notification for BT state change...");
             mHandler.sendEmptyMessage(EVENT_UPDATE_INCALL_NOTIFICATION);
         }
-
-        // Update the Proximity sensor based on Bluetooth audio state
-        updateProximitySensorMode(mCM.getState());
     }
 
     /**
@@ -1536,11 +1257,6 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
                 mVibrator.cancel();
                 if (VDBG) Log.d(LOG_TAG, "mReceiver: force vib cancel");
                 //vibrate(70, 70, -1);
-            } else if (action.equals(Intent.ACTION_DOCK_EVENT)) {
-                mDockState = intent.getIntExtra(Intent.EXTRA_DOCK_STATE,
-                        Intent.EXTRA_DOCK_STATE_UNDOCKED);
-                if (VDBG) Log.d(LOG_TAG, "ACTION_DOCK_EVENT -> mDockState = " + mDockState);
-                mHandler.sendMessage(mHandler.obtainMessage(EVENT_DOCK_STATE_CHANGED, 0));
             } else if (action.equals(TtyIntent.TTY_PREFERRED_MODE_CHANGE_ACTION)) {
                 mPreferredTtyMode = intent.getIntExtra(TtyIntent.TTY_PREFFERED_MODE,
                                                        Phone.TTY_MODE_OFF);
@@ -1620,59 +1336,14 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
         // If service just returned, start sending out the queued messages
         ServiceState ss = ServiceState.newFromBundle(intent.getExtras());
 
-        boolean hasService = true;
-        boolean isCdma = false;
-        String eriText = "";
-
         if (ss != null) {
             int state = ss.getState();
             NotificationMgr.getDefault().updateNetworkSelection(state);
             switch (state) {
                 case ServiceState.STATE_OUT_OF_SERVICE:
                 case ServiceState.STATE_POWER_OFF:
-                    hasService = false;
                     break;
             }
-        } else {
-            hasService = false;
-        }
-    }
-
-    public boolean isOtaCallInActiveState() {
-        boolean otaCallActive = false;
-        if (mInCallScreen != null) {
-            otaCallActive = mInCallScreen.isOtaCallInActiveState();
-        }
-        if (VDBG) Log.d(LOG_TAG, "- isOtaCallInActiveState " + otaCallActive);
-        return otaCallActive;
-    }
-
-    public boolean isOtaCallInEndState() {
-        boolean otaCallEnded = false;
-        if (mInCallScreen != null) {
-            otaCallEnded = mInCallScreen.isOtaCallInEndState();
-        }
-        if (VDBG) Log.d(LOG_TAG, "- isOtaCallInEndState " + otaCallEnded);
-        return otaCallEnded;
-    }
-
-    // it is safe to call clearOtaState() even if the InCallScreen isn't active
-    public void clearOtaState() {
-        if (DBG) Log.d(LOG_TAG, "- clearOtaState ...");
-        if ((mInCallScreen != null)
-                && (mInCallScreen.otaUtils != null)) {
-            mInCallScreen.otaUtils.cleanOtaScreen(true);
-            if (DBG) Log.d(LOG_TAG, "  - clearOtaState clears OTA screen");
-        }
-    }
-
-    // it is safe to call dismissOtaDialogs() even if the InCallScreen isn't active
-    public void dismissOtaDialogs() {
-        if (DBG) Log.d(LOG_TAG, "- dismissOtaDialogs ...");
-        if ((mInCallScreen != null)
-                && (mInCallScreen.otaUtils != null)) {
-            mInCallScreen.otaUtils.dismissAllOtaDialogs();
-            if (DBG) Log.d(LOG_TAG, "  - dismissOtaDialogs clears OTA dialogs");
         }
     }
 

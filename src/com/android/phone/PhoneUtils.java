@@ -299,8 +299,6 @@ public class PhoneUtils {
 
                 setAudioMode();
 
-                // Check is phone in any dock, and turn on speaker accordingly
-                activateSpeakerIfDocked(phone);
             } catch (CallStateException ex) {
                 Log.w(LOG_TAG, "answerCall: caught " + ex, ex);
 
@@ -622,8 +620,6 @@ public class PhoneUtils {
                 }
                 setAudioMode();
 
-                // Check is phone in any dock, and turn on speaker accordingly
-                activateSpeakerIfDocked(phone);
             }
         } catch (CallStateException ex) {
             Log.w(LOG_TAG, "Exception from phone.dial()", ex);
@@ -1327,7 +1323,6 @@ public class PhoneUtils {
      */
     static CallerInfoToken startGetCallerInfo(Context context, Call call,
             CallerInfoAsyncQuery.OnQueryCompleteListener listener, Object cookie) {
-        PhoneApp app = PhoneApp.getInstance();
         Connection conn = null;
         int phoneType = call.getPhone().getPhoneType();
         if (phoneType == Phone.PHONE_TYPE_CDMA) {
@@ -1741,9 +1736,6 @@ public class PhoneUtils {
         // in use.
         PhoneApp app = PhoneApp.getInstance();
         app.updateWakeState();
-
-        // Update the Proximity sensor based on speaker state
-        app.updateProximitySensorMode(app.mCM.getState());
 
         app.mCM.setEchoSuppressionEnabled(flag);
     }
@@ -2378,28 +2370,6 @@ public class PhoneUtils {
     }
 
    /**
-    * This function is called when phone answers or places a call.
-    * Check if the phone is in a car dock or desk dock.
-    * If yes, turn on the speaker, when no wired or BT headsets are connected.
-    * Otherwise do nothing.
-    */
-    private static void activateSpeakerIfDocked(Phone phone) {
-        if (DBG) log("activateSpeakerIfDocked()...");
-
-        if (PhoneApp.mDockState == Intent.EXTRA_DOCK_STATE_DESK ||
-                PhoneApp.mDockState == Intent.EXTRA_DOCK_STATE_CAR) {
-            if (DBG) log("activateSpeakerIfDocked(): In a dock -> may need to turn on speaker.");
-            PhoneApp app = PhoneApp.getInstance();
-            BluetoothHandsfree bthf = app.getBluetoothHandsfree();
-
-            if (!app.isHeadsetPlugged() && !(bthf != null && bthf.isAudioOn())) {
-                turnOnSpeaker(phone.getContext(), true, true);
-            }
-        }
-    }
-
-
-    /**
      * Returns whether the phone is in ECM ("Emergency Callback Mode") or not.
      */
     /* package */ static boolean isPhoneInEcm(Phone phone) {

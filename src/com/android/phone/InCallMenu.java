@@ -20,9 +20,9 @@ import android.content.Context;
 import android.net.sip.SipManager;
 import android.util.Log;
 import android.view.ContextThemeWrapper;
-import com.android.internal.telephony.Call;
-import com.android.internal.telephony.Phone;
+
 import com.android.internal.telephony.CallManager;
+import com.android.internal.telephony.Phone;
 
 /**
  * Helper class to manage the options menu for the InCallScreen.
@@ -284,54 +284,10 @@ class InCallMenu {
 
         final boolean hasRingingCall = cm.hasActiveRingingCall();
         final boolean hasActiveCall = cm.hasActiveFgCall();
-        final Call.State fgCallState = cm.getActiveFgCallState();
         final boolean hasHoldingCall = cm.hasActiveBgCall();
 
         mAddBlackList.setVisible(true);
         mAddBlackList.setEnabled(true);
-
-        // For OTA call, only show dialpad, endcall, speaker, and mute menu items
-        if (hasActiveCall && TelephonyCapabilities.supportsOtasp(cm.getFgPhone()) &&
-                (PhoneApp.getInstance().isOtaCallInActiveState())) {
-            mAnswerAndHold.setVisible(false);
-            mAnswerAndHold.setEnabled(false);
-            mAnswerAndEnd.setVisible(false);
-            mAnswerAndEnd.setEnabled(false);
-
-            mAddBlackList.setVisible(false);
-
-            mManageConference.setVisible(false);
-            mAddCall.setEnabled(false);
-            mSwapCalls.setEnabled(false);
-            mMergeCalls.setEnabled(false);
-            mHold.setEnabled(false);
-            mBluetooth.setEnabled(false);
-            mMute.setEnabled(false);
-            mAnswer.setVisible(false);
-            mIgnore.setVisible(false);
-
-            boolean inConferenceCall =
-                    PhoneUtils.isConferenceCall(cm.getActiveFgCall());
-            boolean showShowDialpad = !inConferenceCall;
-            boolean enableShowDialpad = showShowDialpad && mInCallScreen.okToShowDialpad();
-            mShowDialpad.setVisible(showShowDialpad);
-            mShowDialpad.setEnabled(enableShowDialpad);
-            boolean isDtmfDialerOpened = mInCallScreen.isDialerOpened();
-            mShowDialpad.setText(isDtmfDialerOpened
-                                 ? R.string.menu_hideDialpad
-                                 : R.string.menu_showDialpad);
-
-            mEndCall.setVisible(true);
-            mEndCall.setEnabled(true);
-
-            mSpeaker.setVisible(true);
-            mSpeaker.setEnabled(true);
-            boolean speakerOn = PhoneUtils.isSpeakerOn(mInCallScreen.getApplicationContext());
-            mSpeaker.setIndicatorState(speakerOn);
-
-            mInCallMenuView.updateVisibility();
-            return true;
-        }
 
         // Special cases when an incoming call is ringing.
         if (hasRingingCall) {

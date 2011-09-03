@@ -16,11 +16,6 @@
 
 package com.android.phone;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -28,12 +23,9 @@ import android.content.Intent;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.SystemProperties;
 import android.telephony.PhoneNumberUtils;
 import android.text.TextUtils;
 import android.util.Log;
-
-import com.android.internal.telephony.Phone;
 
 /**
  * OutgoingCallBroadcaster receives CALL and CALL_PRIVILEGED Intents, and
@@ -53,8 +45,7 @@ public class OutgoingCallBroadcaster extends Activity {
 
     private static final String PERMISSION = android.Manifest.permission.PROCESS_OUTGOING_CALLS;
     private static final String TAG = "OutgoingCallBroadcaster";
-    private static final boolean DBG =
-        (PhoneApp.DBG_LEVEL >= 1) && (SystemProperties.getInt("ro.debuggable", 0) == 1);
+    private static final boolean DBG = (PhoneApp.DBG_LEVEL >= 1);
 
     public static final String EXTRA_ALREADY_CALLED = "android.phone.extra.ALREADY_CALLED";
     public static final String EXTRA_ORIGINAL_URI = "android.phone.extra.ORIGINAL_URI";
@@ -101,40 +92,8 @@ public class OutgoingCallBroadcaster extends Activity {
             }
 
             number = getResultData();
-            final PhoneApp app = PhoneApp.getInstance();
-
-            if (TelephonyCapabilities.supportsOtasp(app.phone)) {
-                boolean activateState = (app.cdmaOtaScreenState.otaScreenState
-                        == OtaUtils.CdmaOtaScreenState.OtaScreenState.OTA_STATUS_ACTIVATION);
-                boolean dialogState = (app.cdmaOtaScreenState.otaScreenState
-                        == OtaUtils.CdmaOtaScreenState.OtaScreenState
-                        .OTA_STATUS_SUCCESS_FAILURE_DLG);
-                boolean isOtaCallActive = false;
-
-                if ((app.cdmaOtaScreenState.otaScreenState
-                        == OtaUtils.CdmaOtaScreenState.OtaScreenState.OTA_STATUS_PROGRESS)
-                        || (app.cdmaOtaScreenState.otaScreenState
-                                == OtaUtils.CdmaOtaScreenState.OtaScreenState.OTA_STATUS_LISTENING)) {
-                    isOtaCallActive = true;
-                }
-
-                if (activateState || dialogState) {
-                    if (dialogState) app.dismissOtaDialogs();
-                    app.clearOtaState();
-                    app.clearInCallScreenMode();
-                } else if (isOtaCallActive) {
-                    if (DBG) Log.v(TAG, "OTA call is active, a 2nd CALL cancelled -- returning.");
-                    return;
-                }
-            }
-
             if (number == null) {
                 if (DBG) Log.v(TAG, "CALL cancelled (null number), returning...");
-                return;
-            } else if (TelephonyCapabilities.supportsOtasp(app.phone)
-                    && (app.phone.getState() != Phone.State.IDLE)
-                    && (app.phone.isOtaSpNumber(number))) {
-                if (DBG) Log.v(TAG, "Call is active, a 2nd OTA call cancelled -- returning.");
                 return;
             } else if (PhoneNumberUtils.isEmergencyNumber(number)) {
                 Log.w(TAG, "Cannot modify outgoing call to emergency number " + number + ".");
@@ -348,7 +307,6 @@ public class OutgoingCallBroadcaster extends Activity {
 
         /* We can't use a BroadcastReceiver has we need to display an AlertDialog,
          * which is not allowed with a BroadcastReceiver */
-        final String[] numbers = new String[] {number};
         final Intent finalIntent = intent;
         final boolean finalCallNow = callNow;
         final String finalNumber = number;

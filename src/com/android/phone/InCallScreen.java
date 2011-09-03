@@ -16,6 +16,8 @@
 
 package com.android.phone;
 
+import java.util.List;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -23,8 +25,8 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothHeadset;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface.OnCancelListener;
 import android.content.DialogInterface;
+import android.content.DialogInterface.OnCancelListener;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
@@ -40,7 +42,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
-import android.os.SystemProperties;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.telephony.PhoneNumberUtils;
@@ -71,10 +72,7 @@ import com.android.internal.telephony.CallManager;
 import com.android.internal.telephony.Connection;
 import com.android.internal.telephony.MmiCode;
 import com.android.internal.telephony.Phone;
-import com.android.phone.OtaUtils.CdmaOtaInCallScreenUiState;
-import com.android.phone.OtaUtils.CdmaOtaScreenState;
-
-import java.util.List;
+import com.android.phone.PhoneUtils.VoiceMailNumberMissingException;
 
 /**
  * Phone app "in call" screen.
@@ -83,8 +81,7 @@ public class InCallScreen extends Activity
         implements View.OnClickListener, View.OnTouchListener, View.OnLongClickListener {
     private static final String LOG_TAG = "InCallScreen";
 
-    private static final boolean DBG =
-            (PhoneApp.DBG_LEVEL >= 1) && (SystemProperties.getInt("ro.debuggable", 0) == 1);
+    private static final boolean DBG = (PhoneApp.DBG_LEVEL >= 1);
     private static final boolean VDBG = (PhoneApp.DBG_LEVEL >= 2);
 
     /**
@@ -156,7 +153,6 @@ public class InCallScreen extends Activity
     private static final int PHONE_DISCONNECT = 102;
     private static final int EVENT_HEADSET_PLUG_STATE_CHANGED = 103;
     private static final int POST_ON_DIAL_CHARS = 104;
-    private static final int WILD_PROMPT_CHAR_ENTERED = 105;
     private static final int ADD_VOICEMAIL_NUMBER = 106;
     private static final int DONT_ADD_VOICEMAIL_NUMBER = 107;
     private static final int DELAYED_CLEANUP_AFTER_DISCONNECT = 108;
@@ -169,16 +165,9 @@ public class InCallScreen extends Activity
     private static final int THREEWAY_CALLERINFO_DISPLAY_DONE = 116;
     private static final int EVENT_OTA_PROVISION_CHANGE = 117;
     private static final int REQUEST_CLOSE_SPC_ERROR_NOTICE = 118;
-    private static final int REQUEST_CLOSE_OTA_FAILURE_NOTICE = 119;
     private static final int EVENT_PAUSE_DIALOG_COMPLETE = 120;
     private static final int EVENT_HIDE_PROVIDER_OVERLAY = 121;  // Time to remove the overlay.
     private static final int REQUEST_UPDATE_TOUCH_UI = 122;
-
-    //following constants are used for OTA Call
-    public static final String ACTION_SHOW_ACTIVATION =
-            "com.android.phone.InCallScreen.SHOW_ACTIVATION";
-    public static final String OTA_NUMBER = "*228";
-    public static final String EXTRA_OTA_CALL = "android.phone.extra.OTA_CALL";
 
     // When InCallScreenMode is UNDEFINED set the default action
     // to ACTION_UNDEFINED so if we are resumed the activity will
@@ -203,14 +192,6 @@ public class InCallScreen extends Activity
          */
         CALL_ENDED,
          /**
-         * Normal OTA in-call UI elements visible.
-         */
-        OTA_NORMAL,
-        /**
-         * OTA call ended UI visible, replacing normal OTA in-call UI.
-         */
-        OTA_ENDED,
-        /**
          * Default state when not on call
          */
         UNDEFINED
@@ -271,9 +252,6 @@ public class InCallScreen extends Activity
     private Uri mProviderGatewayUri;
     // The formated address extracted from mProviderGatewayUri. User visible.
     private String mProviderAddress;
-
-    // For OTA Call
-    public OtaUtils otaUtils;
 
     private EditText mWildPromptText;
 
@@ -477,24 +455,6 @@ public class InCallScreen extends Activity
                     }
                     break;
 
-                case EVENT_OTA_PROVISION_CHANGE:
-                    if (otaUtils != null) {
-                        otaUtils.onOtaProvisionStatusChanged((AsyncResult) msg.obj);
-                    }
-                    break;
-
-                case REQUEST_CLOSE_SPC_ERROR_NOTICE:
-                    if (otaUtils != null) {
-                        otaUtils.onOtaCloseSpcNotice();
-                    }
-                    break;
-
-                case REQUEST_CLOSE_OTA_FAILURE_NOTICE:
-                    if (otaUtils != null) {
-                        otaUtils.onOtaCloseFailureNotice();
-                    }
-                    break;
-
                 case EVENT_PAUSE_DIALOG_COMPLETE:
                     if (mPausePromptDialog != null) {
                         if (DBG) log("- DISMISSING mPausePromptDialog.");
@@ -619,7 +579,7 @@ public class InCallScreen extends Activity
         // The "touch lock overlay" feature is used only on devices that
         // *don't* use a proximity sensor to turn the screen off while in-call.
         // add by cytown: also turn off if force show the touch keyboard.
-        mUseTouchLockOverlay = !app.proximitySensorModeEnabled() && !mForceTouch;
+        mUseTouchLockOverlay = !mForceTouch;
 
         Profiler.callScreenCreated();
         if (DBG) log("onCreate(): exit");
@@ -695,7 +655,7 @@ public class InCallScreen extends Activity
         if (mForceTouch != mSettings.mForceTouch) {
             if (DBG) log("Force Touch setting changed, re-init dialpad");
             mForceTouch = mSettings.mForceTouch;
-            mUseTouchLockOverlay = !app.proximitySensorModeEnabled() && !mForceTouch;
+            mUseTouchLockOverlay = !mForceTouch;
             initDialPad();
         }
 
@@ -749,16 +709,7 @@ public class InCallScreen extends Activity
 
         takeKeyEvents(true);
 
-        boolean phoneIsCdma = (mPhone.getPhoneType() == Phone.PHONE_TYPE_CDMA);
-
-        boolean inOtaCall = false;
-        if (phoneIsCdma) {
-            inOtaCall = initOtaState();
-        }
-        if (!inOtaCall) {
-            // Always start off in NORMAL mode
-            setInCallScreenMode(InCallScreenMode.NORMAL);
-        }
+        setInCallScreenMode(InCallScreenMode.NORMAL);
 
         // Before checking the state of the CallManager, clean up any
         // connections in the DISCONNECTED state.
@@ -804,14 +755,6 @@ public class InCallScreen extends Activity
                 // InCallScreen can get stuck in an inconsistent state, somehow
                 // causing a *subsequent* outgoing call to fail (bug 4172599).
                 endInCallScreenSession(true /* force a real finish() call */);
-                return;
-            }
-        } else if (phoneIsCdma) {
-            if (mInCallScreenMode == InCallScreenMode.OTA_NORMAL ||
-                    mInCallScreenMode == InCallScreenMode.OTA_ENDED) {
-                mDialer.setHandleVisible(false);
-                if (mInCallPanel != null) mInCallPanel.setVisibility(View.GONE);
-                updateScreen();
                 return;
             }
         }
@@ -894,10 +837,6 @@ public class InCallScreen extends Activity
         updateProviderOverlay();
 
         final PhoneApp app = PhoneApp.getInstance();
-
-        // A safety measure to disable proximity sensor in case call failed
-        // and the telephony state did not change.
-        app.setBeginningCall(false);
 
         // Make sure the "Manage conference" chronometer is stopped when
         // we move away from the foreground.
@@ -989,27 +928,6 @@ public class InCallScreen extends Activity
 
         Phone.State state = mCM.getState();
         if (DBG) log("onStop: state = " + state);
-
-        if (state == Phone.State.IDLE) {
-            final PhoneApp app = PhoneApp.getInstance();
-            // when OTA Activation, OTA Success/Failure dialog or OTA SPC
-            // failure dialog is running, do not destroy inCallScreen. Because call
-            // is already ended and dialog will not get redrawn on slider event.
-            if ((app.cdmaOtaProvisionData != null) && (app.cdmaOtaScreenState != null)
-                    && ((app.cdmaOtaScreenState.otaScreenState !=
-                            CdmaOtaScreenState.OtaScreenState.OTA_STATUS_ACTIVATION)
-                        && (app.cdmaOtaScreenState.otaScreenState !=
-                            CdmaOtaScreenState.OtaScreenState.OTA_STATUS_SUCCESS_FAILURE_DLG)
-                        && (!app.cdmaOtaProvisionData.inOtaSpcState))) {
-                // we don't want the call screen to remain in the activity history
-                // if there are not active or ringing calls.
-                if (DBG) log("- onStop: calling finish() to clear activity history...");
-                moveTaskToBack(true);
-                if (otaUtils != null) {
-                    otaUtils.cleanOtaScreen(true);
-                }
-            }
-        }
     }
 
     @Override
@@ -1203,8 +1121,6 @@ public class InCallScreen extends Activity
             return InCallInitStatus.SUCCESS;
         }
 
-        checkIsOtaCall(intent);
-
         String action = intent.getAction();
         if (DBG) log("internalResolveIntent: action=" + action);
 
@@ -1217,17 +1133,7 @@ public class InCallScreen extends Activity
         // If OTA Activation is configured for Power up scenario, then
         // InCallScreen UI started with Intent of ACTION_SHOW_ACTIVATION
         // to show OTA Activation screen at power up.
-        if ((action.equals(ACTION_SHOW_ACTIVATION))
-                && ((mPhone.getPhoneType() == Phone.PHONE_TYPE_CDMA))) {
-            setInCallScreenMode(InCallScreenMode.OTA_NORMAL);
-            if ((app.cdmaOtaProvisionData != null)
-                    && (!app.cdmaOtaProvisionData.isOtaCallIntentProcessed)) {
-                app.cdmaOtaProvisionData.isOtaCallIntentProcessed = true;
-                app.cdmaOtaScreenState.otaScreenState =
-                        CdmaOtaScreenState.OtaScreenState.OTA_STATUS_ACTIVATION;
-            }
-            return InCallInitStatus.SUCCESS;
-        } else if (action.equals(Intent.ACTION_ANSWER)) {
+        if (action.equals(Intent.ACTION_ANSWER)) {
             internalAnswerCall();
             app.setRestoreMuteOnInCallResume(false);
             return InCallInitStatus.SUCCESS;
@@ -1253,11 +1159,6 @@ public class InCallScreen extends Activity
                 clearProvider();
             }
             InCallInitStatus status = placeCall(intent);
-            if (status == InCallInitStatus.SUCCESS) {
-                // Notify the phone app that a call is beginning so it can
-                // enable the proximity sensor
-                app.setBeginningCall(true);
-            }
             return status;
         } else if (action.equals(intent.ACTION_MAIN)) {
             // The MAIN action is used to bring up the in-call screen without
@@ -1267,12 +1168,6 @@ public class InCallScreen extends Activity
             // dialpad should be initially visible.  If the extra isn't
             // present at all, we just leave the dialpad in its previous state.
 
-            if ((mInCallScreenMode == InCallScreenMode.OTA_NORMAL)
-                    || (mInCallScreenMode == InCallScreenMode.OTA_ENDED)) {
-                // If in OTA Call, update the OTA UI
-                updateScreen();
-                return InCallInitStatus.SUCCESS;
-            }
             if (intent.hasExtra(SHOW_DIALPAD_EXTRA)) {
                 boolean showDialpad = intent.getBooleanExtra(SHOW_DIALPAD_EXTRA, false);
                 if (VDBG) log("- internalResolveIntent: SHOW_DIALPAD_EXTRA: " + showDialpad);
@@ -1814,20 +1709,6 @@ public class InCallScreen extends Activity
             }
         }
 
-        // for OTA Call, only if in OTA NORMAL mode, handle OTA END scenario
-        final PhoneApp app = PhoneApp.getInstance();
-        if ((mInCallScreenMode == InCallScreenMode.OTA_NORMAL)
-                && ((app.cdmaOtaProvisionData != null)
-                && (!app.cdmaOtaProvisionData.inOtaSpcState))) {
-            setInCallScreenMode(InCallScreenMode.OTA_ENDED);
-            updateScreen();
-            return;
-        } else if ((mInCallScreenMode == InCallScreenMode.OTA_ENDED)
-                || ((app.cdmaOtaProvisionData != null) && app.cdmaOtaProvisionData.inOtaSpcState)) {
-           if (DBG) log("onDisconnect: OTA Call end already handled");
-           return;
-        }
-
         // Any time a call disconnects, clear out the "history" of DTMF
         // digits you typed (to make sure it doesn't persist from one call
         // to the next.)
@@ -1908,6 +1789,7 @@ public class InCallScreen extends Activity
             if (connections != null && connections.size() > 1) {
                 for (Connection conn : connections) {
                     if (conn.getState() == Call.State.ACTIVE) {
+
                         // This call still has at least one ACTIVE connection!
                         // So blow away any DISCONNECTED connections
                         // (including, presumably, the one that just
@@ -1917,6 +1799,7 @@ public class InCallScreen extends Activity
                         // case the disconnected connections are removed
                         // before the phone state change.
                         if (VDBG) log("- Still-active conf call; clearing DISCONNECTED...");
+                        final PhoneApp app = PhoneApp.getInstance();
                         app.updateWakeState();
                         mCM.clearDisconnected();  // This happens synchronously.
                         break;
@@ -2444,36 +2327,7 @@ public class InCallScreen extends Activity
             }
         }
 
-        final PhoneApp app = PhoneApp.getInstance();
-
-        if (mInCallScreenMode == InCallScreenMode.OTA_NORMAL) {
-            if (DBG) log("- updateScreen: OTA call state NORMAL...");
-            if (otaUtils != null) {
-                if (DBG) log("- updateScreen: otaUtils is not null, call otaShowProperScreen");
-                otaUtils.otaShowProperScreen();
-            }
-            return;
-        } else if (mInCallScreenMode == InCallScreenMode.OTA_ENDED) {
-            if (DBG) log("- updateScreen: OTA call ended state ...");
-            // Wake up the screen when we get notification, good or bad.
-            PhoneApp.getInstance().wakeUpScreen();
-            if (app.cdmaOtaScreenState.otaScreenState
-                == CdmaOtaScreenState.OtaScreenState.OTA_STATUS_ACTIVATION) {
-                if (DBG) log("- updateScreen: OTA_STATUS_ACTIVATION");
-                if (otaUtils != null) {
-                    if (DBG) log("- updateScreen: otaUtils is not null, "
-                                 + "call otaShowActivationScreen");
-                    otaUtils.otaShowActivateScreen();
-                }
-            } else {
-                if (DBG) log("- updateScreen: OTA Call end state for Dialogs");
-                if (otaUtils != null) {
-                    if (DBG) log("- updateScreen: Show OTA Success Failure dialog");
-                    otaUtils.otaShowSuccessFailure();
-                }
-            }
-            return;
-        } else if (mInCallScreenMode == InCallScreenMode.MANAGE_CONFERENCE) {
+        if (mInCallScreenMode == InCallScreenMode.MANAGE_CONFERENCE) {
             if (DBG) log("- updateScreen: manage conference mode (NOT updating in-call UI)...");
             updateManageConferencePanelIfNecessary();
             return;
@@ -2544,7 +2398,6 @@ public class InCallScreen extends Activity
      *    calling endInCallScreenSession if appropriate.
      */
     private InCallInitStatus syncWithPhoneState() {
-        boolean updateSuccessful = false;
         if (DBG) log("syncWithPhoneState()...");
         if (DBG) PhoneUtils.dumpCallState();
         if (VDBG) dumpBluetoothState();
@@ -2553,14 +2406,6 @@ public class InCallScreen extends Activity
         // this screen in the first place.)
 
         int phoneType = mCM.getFgPhone().getPhoneType();
-
-        if ((phoneType == Phone.PHONE_TYPE_CDMA)
-                && ((mInCallScreenMode == InCallScreenMode.OTA_NORMAL)
-                || (mInCallScreenMode == InCallScreenMode.OTA_ENDED))) {
-            // Even when OTA Call ends, need to show OTA End UI,
-            // so return Success to allow UI update.
-            return InCallInitStatus.SUCCESS;
-        }
 
         // Need to treat running MMI codes as a connection as well.
         // Do not check for getPendingMmiCodes when phone is a CDMA phone
@@ -2716,14 +2561,6 @@ public class InCallScreen extends Activity
 
         final PhoneApp app = PhoneApp.getInstance();
 
-        if ((phone.getPhoneType() == Phone.PHONE_TYPE_CDMA) && (phone.isOtaSpNumber(number))) {
-            if (DBG) log("placeCall: isOtaSpNumber() returns true");
-            setInCallScreenMode(InCallScreenMode.OTA_NORMAL);
-            if (app.cdmaOtaProvisionData != null) {
-                app.cdmaOtaProvisionData.isOtaCallCommitted = false;
-            }
-        }
-
         mNeedShowCallLostDialog = false;
 
         // We have a valid number, so try to actually place a call:
@@ -2747,12 +2584,6 @@ public class InCallScreen extends Activity
             case PhoneUtils.CALL_STATUS_DIALED:
                 if (VDBG) log("placeCall: PhoneUtils.placeCall() succeeded for regular call '"
                               + number + "'.");
-
-                if (mInCallScreenMode == InCallScreenMode.OTA_NORMAL) {
-                    app.cdmaOtaScreenState.otaScreenState =
-                            CdmaOtaScreenState.OtaScreenState.OTA_STATUS_LISTENING;
-                    updateScreen();
-                }
 
                 // Any time we initiate a call, force the DTMF dialpad to
                 // close.  (We want to make sure the user can see the regular
@@ -3070,10 +2901,6 @@ public class InCallScreen extends Activity
     public void onClick(View view) {
         int id = view.getId();
         if (VDBG) log("onClick(View " + view + ", id " + id + ")...");
-        if (VDBG && view instanceof InCallMenuItemView) {
-            InCallMenuItemView item = (InCallMenuItemView) view;
-            log("  ==> menu item! " + item);
-        }
 
         // Most menu items dismiss the menu immediately once you click
         // them.  But some items (the "toggle" buttons) are different:
@@ -3172,14 +2999,6 @@ public class InCallScreen extends Activity
                 break;
 
             default:
-                if  ((mInCallScreenMode == InCallScreenMode.OTA_NORMAL
-                        || mInCallScreenMode == InCallScreenMode.OTA_ENDED)
-                        && otaUtils != null) {
-                    otaUtils.onClickHandler(id);
-                } else {
-                    Log.w(LOG_TAG,
-                            "Got click from unexpected View ID " + id + " (View = " + view + ")");
-                }
                 break;
         }
 
@@ -3237,22 +3056,12 @@ public class InCallScreen extends Activity
         final boolean hasHoldingCall = mCM.hasActiveBgCall();
         if (VDBG) log("- hasActiveCall = " + hasActiveCall
                       + ", hasHoldingCall = " + hasHoldingCall);
-        boolean newHoldState;
-        boolean holdButtonEnabled;
         if (hasActiveCall && !hasHoldingCall) {
             // There's only one line in use, and that line is active.
             PhoneUtils.switchHoldingAndActive(mCM.getFirstActiveBgCall());  // Really means "hold" in this state
-            newHoldState = true;
-            holdButtonEnabled = true;
         } else if (!hasActiveCall && hasHoldingCall) {
             // There's only one line in use, and that line is on hold.
             PhoneUtils.switchHoldingAndActive(mCM.getFirstActiveBgCall());  // Really means "unhold" in this state
-            newHoldState = false;
-            holdButtonEnabled = true;
-        } else {
-            // Either zero or 2 lines are in use; "hold/unhold" is meaningless.
-            newHoldState = false;
-            holdButtonEnabled = false;
         }
         // TODO: we *could* now forcibly update the "Hold" button based on
         // "newHoldState" and "holdButtonEnabled".  But for now, do
@@ -3782,11 +3591,6 @@ public class InCallScreen extends Activity
             mCallLostDialog.dismiss();
             mCallLostDialog = null;
         }
-        if ((mInCallScreenMode == InCallScreenMode.OTA_NORMAL
-                || mInCallScreenMode == InCallScreenMode.OTA_ENDED)
-                && otaUtils != null) {
-            otaUtils.dismissAllOtaDialogs();
-        }
         if (mPausePromptDialog != null) {
             if (DBG) log("- DISMISSING mPausePromptDialog.");
             mPausePromptDialog.dismiss();
@@ -3999,18 +3803,6 @@ public class InCallScreen extends Activity
                 mManageConferenceUtils.stopConferenceTime();
                 break;
 
-            case OTA_NORMAL:
-                otaUtils.setCdmaOtaInCallScreenUiState(
-                        OtaUtils.CdmaOtaInCallScreenUiState.State.NORMAL);
-                mInCallPanel.setVisibility(View.GONE);
-                break;
-
-            case OTA_ENDED:
-                otaUtils.setCdmaOtaInCallScreenUiState(
-                        OtaUtils.CdmaOtaInCallScreenUiState.State.ENDED);
-                mInCallPanel.setVisibility(View.GONE);
-                break;
-
             case UNDEFINED:
                 // Set our Activities intent to ACTION_UNDEFINED so
                 // that if we get resumed after we've completed a call
@@ -4036,16 +3828,6 @@ public class InCallScreen extends Activity
                 // sequence will be onNewIntent, onResume and all will be well.
                 setIntent(new Intent(ACTION_UNDEFINED));
 
-                // Cleanup Ota Screen if necessary and set the panel
-                // to VISIBLE.
-                if (mCM.getState() != Phone.State.OFFHOOK) {
-                    if (otaUtils != null) {
-                        otaUtils.cleanOtaScreen(true);
-                    }
-                } else {
-                    log("WARNING: Setting mode to UNDEFINED but phone is OFFHOOK,"
-                            + " skip cleanOtaScreen.");
-                }
                 mInCallPanel.setVisibility(View.VISIBLE);
                 break;
         }
@@ -4211,15 +3993,6 @@ public class InCallScreen extends Activity
 
         // This counts as explicit "user activity".
         PhoneApp.getInstance().pokeUserActivity();
-
-        //If on OTA Call, hide OTA Screen
-        // TODO: This may not be necessary, now that the dialpad is
-        // always visible in OTA mode.
-        if  ((mInCallScreenMode == InCallScreenMode.OTA_NORMAL
-                || mInCallScreenMode == InCallScreenMode.OTA_ENDED)
-                && otaUtils != null) {
-            otaUtils.hideOtaScreen();
-        }
     }
 
     /**
@@ -4230,18 +4003,6 @@ public class InCallScreen extends Activity
         if (DBG) log("onDialerClose()...");
 
         final PhoneApp app = PhoneApp.getInstance();
-
-        // OTA-specific cleanup upon closing the dialpad.
-        if ((mInCallScreenMode == InCallScreenMode.OTA_NORMAL)
-            || (mInCallScreenMode == InCallScreenMode.OTA_ENDED)
-            || ((app.cdmaOtaScreenState != null)
-                && (app.cdmaOtaScreenState.otaScreenState ==
-                    CdmaOtaScreenState.OtaScreenState.OTA_STATUS_ACTIVATION))) {
-            mDialer.setHandleVisible(false);
-            if (otaUtils != null) {
-                otaUtils.otaShowProperScreen();
-            }
-        }
 
         // Dismiss the "touch lock" overlay if it was visible.
         // (The overlay is only ever used on top of the dialpad).
@@ -4926,199 +4687,12 @@ public class InCallScreen extends Activity
 
     /**
      * Posts a handler message telling the InCallScreen to close
-     * the OTA failure notice after the specified delay.
-     * @see OtaUtils.otaShowProgramFailureNotice
-     */
-    /* package */ void requestCloseOtaFailureNotice(long timeout) {
-        if (DBG) log("requestCloseOtaFailureNotice() with timeout: " + timeout);
-        mHandler.sendEmptyMessageDelayed(REQUEST_CLOSE_OTA_FAILURE_NOTICE, timeout);
-
-        // TODO: we probably ought to call removeMessages() for this
-        // message code in either onPause or onResume, just to be 100%
-        // sure that the message we just posted has no way to affect a
-        // *different* call if the user quickly backs out and restarts.
-        // (This is also true for requestCloseSpcErrorNotice() below, and
-        // probably anywhere else we use mHandler.sendEmptyMessageDelayed().)
-    }
-
-    /**
-     * Posts a handler message telling the InCallScreen to close
      * the SPC error notice after the specified delay.
      * @see OtaUtils.otaShowSpcErrorNotice
      */
     /* package */ void requestCloseSpcErrorNotice(long timeout) {
         if (DBG) log("requestCloseSpcErrorNotice() with timeout: " + timeout);
         mHandler.sendEmptyMessageDelayed(REQUEST_CLOSE_SPC_ERROR_NOTICE, timeout);
-    }
-
-    public boolean isOtaCallInActiveState() {
-        final PhoneApp app = PhoneApp.getInstance();
-        if ((mInCallScreenMode == InCallScreenMode.OTA_NORMAL)
-                || ((app.cdmaOtaScreenState != null)
-                    && (app.cdmaOtaScreenState.otaScreenState ==
-                        CdmaOtaScreenState.OtaScreenState.OTA_STATUS_ACTIVATION))) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * Handle OTA Call End scenario when display becomes dark during OTA Call
-     * and InCallScreen is in pause mode.  CallNotifier will listen for call
-     * end indication and call this api to handle OTA Call end scenario
-     */
-    public void handleOtaCallEnd() {
-        final PhoneApp app = PhoneApp.getInstance();
-
-        if (DBG) log("handleOtaCallEnd entering");
-        if (((mInCallScreenMode == InCallScreenMode.OTA_NORMAL)
-                || ((app.cdmaOtaScreenState != null)
-                && (app.cdmaOtaScreenState.otaScreenState !=
-                    CdmaOtaScreenState.OtaScreenState.OTA_STATUS_UNDEFINED)))
-                && ((app.cdmaOtaProvisionData != null)
-                && (!app.cdmaOtaProvisionData.inOtaSpcState))) {
-            if (DBG) log("handleOtaCallEnd - Set OTA Call End stater");
-            setInCallScreenMode(InCallScreenMode.OTA_ENDED);
-            updateScreen();
-        }
-    }
-
-    public boolean isOtaCallInEndState() {
-        return (mInCallScreenMode == InCallScreenMode.OTA_ENDED);
-    }
-
-    /**
-     * Checks to see if the current call is a CDMA OTA Call, based on the
-     * action of the specified intent and OTA Screen state information.
-     *
-     * The OTA call is a CDMA-specific concept, so this method will
-     * always return false on a GSM phone.
-     */
-    private boolean checkIsOtaCall(Intent intent) {
-        if (VDBG) log("checkIsOtaCall...");
-
-        if (intent == null || intent.getAction() == null) {
-            return false;
-        }
-
-        if (!TelephonyCapabilities.supportsOtasp(mCM.getDefaultPhone())) {
-            return false;
-        }
-
-        final PhoneApp app = PhoneApp.getInstance();
-
-        if ((app.cdmaOtaScreenState == null)
-                || (app.cdmaOtaProvisionData == null)) {
-            if (DBG) log("checkIsOtaCall: OtaUtils.CdmaOtaScreenState not initialized");
-            return false;
-        }
-
-        String action = intent.getAction();
-        boolean isOtaCall = false;
-        if (action.equals(ACTION_SHOW_ACTIVATION)) {
-            if (DBG) log("checkIsOtaCall action = ACTION_SHOW_ACTIVATION");
-            if (!app.cdmaOtaProvisionData.isOtaCallIntentProcessed) {
-                if (DBG) log("checkIsOtaCall: ACTION_SHOW_ACTIVATION is not handled before");
-                app.cdmaOtaProvisionData.isOtaCallIntentProcessed = true;
-                app.cdmaOtaScreenState.otaScreenState =
-                        CdmaOtaScreenState.OtaScreenState.OTA_STATUS_ACTIVATION;
-            }
-            isOtaCall = true;
-        } else if (action.equals(Intent.ACTION_CALL)
-                || action.equals(Intent.ACTION_CALL_EMERGENCY)) {
-            String number;
-            try {
-                number = getInitialNumber(intent);
-            } catch (PhoneUtils.VoiceMailNumberMissingException ex) {
-                if (DBG) log("Error retrieving number using the api getInitialNumber()");
-                return false;
-            }
-            if (mPhone.isOtaSpNumber(number)) {
-                if (DBG) log("checkIsOtaCall action ACTION_CALL, it is valid OTA number");
-                isOtaCall = true;
-            }
-        } else if (action.equals(intent.ACTION_MAIN)) {
-            if (DBG) log("checkIsOtaCall action ACTION_MAIN");
-            boolean isRingingCall = mCM.hasActiveRingingCall();
-            if (isRingingCall) {
-                if (DBG) log("checkIsOtaCall isRingingCall: " + isRingingCall);
-                return false;
-            } else if ((app.cdmaOtaInCallScreenUiState.state
-                            == CdmaOtaInCallScreenUiState.State.NORMAL)
-                    || (app.cdmaOtaInCallScreenUiState.state
-                            == CdmaOtaInCallScreenUiState.State.ENDED)) {
-                if (DBG) log("checkIsOtaCall action ACTION_MAIN, OTA call already in progress");
-                isOtaCall = true;
-            } else {
-                if (app.cdmaOtaScreenState.otaScreenState !=
-                        CdmaOtaScreenState.OtaScreenState.OTA_STATUS_UNDEFINED) {
-                    if (DBG) log("checkIsOtaCall action ACTION_MAIN, "
-                                 + "OTA call in progress with UNDEFINED");
-                    isOtaCall = true;
-                }
-            }
-        }
-
-        if (DBG) log("checkIsOtaCall: isOtaCall =" + isOtaCall);
-        if (isOtaCall && (otaUtils == null)) {
-            if (DBG) log("checkIsOtaCall: creating OtaUtils...");
-            otaUtils = new OtaUtils(getApplicationContext(),
-                                    this, mInCallPanel, mCallCard, mDialer);
-        }
-        return isOtaCall;
-    }
-
-    /**
-     * Initialize the OTA State and UI.
-     *
-     * On Resume, this function is called to check if current call is
-     * OTA Call and if it is OTA Call, create OtaUtil object and set
-     * InCallScreenMode to OTA Call mode (OTA_NORMAL or OTA_ENDED).
-     * As part of initialization, OTA Call Card is inflated.
-     * OtaUtil object provides utility apis that InCallScreen calls for OTA Call UI
-     * rendering, handling of touck/key events on OTA Screens and handling of
-     * Framework events that result in OTA State change
-     *
-     * @return: true if we are in an OtaCall
-     */
-    private boolean initOtaState() {
-        boolean inOtaCall = false;
-
-        if (TelephonyCapabilities.supportsOtasp(mCM.getDefaultPhone())) {
-            final PhoneApp app = PhoneApp.getInstance();
-
-            if ((app.cdmaOtaScreenState == null) || (app.cdmaOtaProvisionData == null)) {
-                if (DBG) log("initOtaState func - All CdmaOTA utility classes not initialized");
-                return false;
-            }
-
-            inOtaCall = checkIsOtaCall(getIntent());
-            if (inOtaCall) {
-                OtaUtils.CdmaOtaInCallScreenUiState.State cdmaOtaInCallScreenState =
-                        otaUtils.getCdmaOtaInCallScreenUiState();
-                if (cdmaOtaInCallScreenState == OtaUtils.CdmaOtaInCallScreenUiState.State.NORMAL) {
-                    if (DBG) log("initOtaState - in OTA Normal mode");
-                    setInCallScreenMode(InCallScreenMode.OTA_NORMAL);
-                } else if (cdmaOtaInCallScreenState ==
-                                OtaUtils.CdmaOtaInCallScreenUiState.State.ENDED) {
-                    if (DBG) log("initOtaState - in OTA END mode");
-                    setInCallScreenMode(InCallScreenMode.OTA_ENDED);
-                } else if (app.cdmaOtaScreenState.otaScreenState ==
-                                CdmaOtaScreenState.OtaScreenState.OTA_STATUS_SUCCESS_FAILURE_DLG) {
-                    if (DBG) log("initOtaState - set OTA END Mode");
-                    setInCallScreenMode(InCallScreenMode.OTA_ENDED);
-                } else {
-                    if (DBG) log("initOtaState - Set OTA NORMAL Mode");
-                    setInCallScreenMode(InCallScreenMode.OTA_NORMAL);
-                }
-            } else {
-                if (otaUtils != null) {
-                    otaUtils.cleanOtaScreen(false);
-                }
-            }
-        }
-        return inOtaCall;
     }
 
     public void updateMenuItems() {
