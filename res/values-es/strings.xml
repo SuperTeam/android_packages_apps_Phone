@@ -749,6 +749,7 @@
        <item>Desactivado</item>
        <item>Presiona para colgar</item>
        <item>Presiona dos veces para colgar</item>
+    </string-array>
 
     <!-- Voice quality filter -->
     <string name="voice_quality_preferences_title">Calidad de voz</string>
@@ -758,6 +759,4 @@
     <string name="voice_quality_entry_clear">Limpio</string>
     <string name="voice_quality_entry_crisp">Crujiente</string>
     <string name="voice_quality_entry_bright">Brillante</string>
-
-    </string-array>
 </resources>
