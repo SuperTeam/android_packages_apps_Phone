@@ -947,8 +947,8 @@ public class CallNotifier extends Handler
         }
     }
 
-    private void onDisconnect(AsyncResult r) {        
-	if (VDBG) log("onDisconnect()...  CallManager state: " + mCM.getState());
+    private void onDisconnect(AsyncResult r) {
+        if (VDBG) log("onDisconnect()...  CallManager state: " + mCM.getState());
 
         Connection c = (Connection) r.result;
         if (DBG && c != null) {
