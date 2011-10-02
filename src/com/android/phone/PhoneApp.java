@@ -39,6 +39,7 @@ import android.os.IBinder;
 import android.os.IPowerManager;
 import android.os.LocalPowerManager;
 import android.os.Message;
+import android.os.SystemProperties;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -170,6 +171,7 @@ public class PhoneApp extends Application {
     private StatusBarManager mStatusBarManager;
     private int mStatusBarDisableCount;
     private AccelerometerListener mAccelerometerListener;
+    private boolean locksReleased = true;
 
     // Broadcast receiver for various intent broadcasts (see onCreate())
     private final BroadcastReceiver mReceiver = new PhoneAppBroadcastReceiver();
