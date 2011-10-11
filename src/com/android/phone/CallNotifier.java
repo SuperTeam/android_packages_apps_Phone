@@ -27,7 +27,6 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.os.Vibrator;
-import android.preference.PreferenceManager;
 import android.provider.CallLog.Calls;
 import android.provider.Settings;
 import android.telephony.PhoneNumberUtils;
@@ -37,11 +36,17 @@ import android.text.TextUtils;
 import android.util.EventLog;
 import android.util.Log;
 
-import android.hardware.SensorManager;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorEvent;
-import android.hardware.Sensor;
-
+import com.android.internal.telephony.Call;
+import com.android.internal.telephony.CallManager;
+import com.android.internal.telephony.CallerInfo;
+import com.android.internal.telephony.CallerInfoAsyncQuery;
+import com.android.internal.telephony.Connection;
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneBase;
+import com.android.internal.telephony.cdma.CdmaCallWaitingNotification;
+import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaDisplayInfoRec;
+import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaSignalInfoRec;
+import com.android.internal.telephony.cdma.SignalToneUtil;
 
 /**
  * Phone app module that listens for phone state changes and various other
@@ -913,13 +918,6 @@ public class CallNotifier extends Handler
         if (VDBG) log("onDisconnect()...  CallManager state: " + mCM.getState());
 
         Connection c = (Connection) r.result;
-        if (DBG && c != null) {
-            log("- onDisconnect: cause = " + c.getDisconnectCause()
-                + ", incoming = " + c.isIncoming()
-                + ", date = " + c.getCreateTime());
-        }
-
-
         mCdmaVoicePrivacyState = false;
         int autoretrySetting = 0;
         if ((c != null) && (c.getCall().getPhone().getPhoneType() == Phone.PHONE_TYPE_CDMA)) {
