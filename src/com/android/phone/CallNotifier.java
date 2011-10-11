@@ -37,17 +37,10 @@ import android.text.TextUtils;
 import android.util.EventLog;
 import android.util.Log;
 
-import com.android.internal.telephony.Call;
-import com.android.internal.telephony.CallManager;
-import com.android.internal.telephony.CallerInfo;
-import com.android.internal.telephony.CallerInfoAsyncQuery;
-import com.android.internal.telephony.Connection;
-import com.android.internal.telephony.Phone;
-import com.android.internal.telephony.PhoneBase;
-import com.android.internal.telephony.cdma.CdmaCallWaitingNotification;
-import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaDisplayInfoRec;
-import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaSignalInfoRec;
-import com.android.internal.telephony.cdma.SignalToneUtil;
+import android.hardware.SensorManager;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorEvent;
+import android.hardware.Sensor;
 
 
 /**
@@ -184,7 +177,7 @@ public class CallNotifier extends Handler
 
     public CallNotifier(PhoneApp app, Phone phone, Ringer ringer,
                         BluetoothHandsfree btMgr, CallLogAsync callLog) {
-        mSettings = CallFeaturesSetting.getInstance(PreferenceManager.getDefaultSharedPreferences(app));
+        mSettings = CallFeaturesSetting.getInstance(app);
         //mSensorManager = (SensorManager) app.getSystemService(Context.SENSOR_SERVICE);
         mApplication = app;
         mCM = app.mCM;
@@ -916,8 +909,8 @@ public class CallNotifier extends Handler
         }
     }
 
-    private void onDisconnect(AsyncResult r) {        
-	if (VDBG) log("onDisconnect()...  CallManager state: " + mCM.getState());
+    private void onDisconnect(AsyncResult r) {
+        if (VDBG) log("onDisconnect()...  CallManager state: " + mCM.getState());
 
         Connection c = (Connection) r.result;
         if (DBG && c != null) {
