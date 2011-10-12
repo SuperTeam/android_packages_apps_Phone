@@ -16,15 +16,13 @@
 
 package com.android.phone;
 
-import java.util.List;
-
 import android.content.ContentUris;
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.pim.ContactsAsyncHelper;
-import android.provider.ContactsContract;
 import android.provider.ContactsContract.Contacts;
+import android.provider.ContactsContract.RawContacts;
 import android.telephony.PhoneNumberUtils;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
@@ -40,11 +38,16 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.android.internal.telephony.Call;
-import com.android.internal.telephony.CallManager;
 import com.android.internal.telephony.CallerInfo;
 import com.android.internal.telephony.CallerInfoAsyncQuery;
 import com.android.internal.telephony.Connection;
 import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.CallManager;
+
+import java.util.List;
+import java.util.ArrayList;
+
+import android.provider.ContactsContract;
 
 /**
  * "Call card" UI element: the in-call screen contains a tiled layout of call
@@ -221,6 +224,7 @@ public class CallCard extends FrameLayout
         // type of the CallCard, load up the main caller info area, and
         // load up and show or hide the "other call" area if necessary.
 
+        Phone.State state = cm.getState();  // IDLE, RINGING, or OFFHOOK
         Call ringingCall = cm.getFirstActiveRingingCall();
         Call fgCall = cm.getActiveFgCall();
         Call bgCall = cm.getFirstActiveBgCall();
@@ -646,7 +650,9 @@ public class CallCard extends FrameLayout
             case ACTIVE:
             case DISCONNECTING:
                 final boolean bluetoothActive = mApplication.showBluetoothIndication();
-			int connectedTextColor = bluetoothActive
+                int ongoingCallIcon = bluetoothActive ? R.drawable.ic_incall_ongoing_bluetooth
+                        : R.drawable.ic_incall_ongoing;
+                int connectedTextColor = bluetoothActive
                         ? mTextColorConnectedBluetooth : mTextColorConnected;
 
                 if (phoneType == Phone.PHONE_TYPE_CDMA) {
@@ -825,7 +831,7 @@ public class CallCard extends FrameLayout
     private void displayOnHoldCallStatus(CallManager cm, Call call) {
         if (DBG) log("displayOnHoldCallStatus(call =" + call + ")...");
 
-        if (call == null) {
+        if ((call == null) || (PhoneApp.getInstance().isOtaCallInActiveState())) {
             mSecondaryCallInfo.setVisibility(View.GONE);
             return;
         }
@@ -1462,6 +1468,22 @@ public class CallCard extends FrameLayout
      */
     /* package */ TextView getMenuButtonHint() {
         return mMenuButtonHint;
+    }
+
+    /**
+     * Sets the left and right margins of the specified ViewGroup (whose
+     * LayoutParams object which must inherit from
+     * ViewGroup.MarginLayoutParams.)
+     *
+     * TODO: Is there already a convenience method like this somewhere?
+     */
+    private void setSideMargins(ViewGroup vg, int margin) {
+        ViewGroup.MarginLayoutParams lp =
+                (ViewGroup.MarginLayoutParams) vg.getLayoutParams();
+        // Equivalent to setting android:layout_marginLeft/Right in XML
+        lp.leftMargin = margin;
+        lp.rightMargin = margin;
+        vg.setLayoutParams(lp);
     }
 
     /**

@@ -668,7 +668,19 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
      * Returns true if CDMA provisioning needs to run.
      */
     public boolean getCdmaNeedsProvisioning() {
-        return false;
+        if (getActivePhoneType() == Phone.PHONE_TYPE_GSM) {
+            return false;
+        }
+
+        boolean needsProvisioning = false;
+        String cdmaMin = mPhone.getCdmaMin();
+        try {
+            needsProvisioning = OtaUtils.needsActivation(cdmaMin);
+        } catch (IllegalArgumentException e) {
+            // shouldn't get here unless hardware is misconfigured
+            Log.e(LOG_TAG, "CDMA MIN string " + ((cdmaMin == null) ? "was null" : "was too short"));
+        }
+        return needsProvisioning;
     }
 
     /**

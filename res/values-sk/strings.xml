@@ -763,11 +763,4 @@
     </string-array>
     <string name="hide_hold_button">Skryť tlačidlo Podržať</string>
     <string name="hide_hold_button_sum">Skryť tlačidlo, ktoré podrží súčasný hovor.</string>
-    <string name="toast_phone_goggles">Momentálne nemáte možnosť uskutočňovať hovory. Skúste neskôr prosím.</string>
-    <string name="dialog_phone_goggles_title">Hovor blokovaný</string>
-    <string name="dialog_phone_goggles_title_unlocked">Hovor povolený</string>
-    <string name="dialog_phone_goggles_content">Uskutočnenie hovoru nemusí byť teraz rozumné. Naozaj si prajete pokračovať?</string>
-    <string name="dialog_phone_goggles_unauthorized">Uskutočnenie hovoru nemusí byť teraz rozumné.</string>
-    <string name="dialog_phone_goggles_ok">Volať</string>
-    <string name="dialog_phone_goggles_cancel">Zrušiť</string>
 </resources>
