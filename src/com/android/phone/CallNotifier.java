@@ -16,18 +16,6 @@
 
 package com.android.phone;
 
-import com.android.internal.telephony.Call;
-import com.android.internal.telephony.CallerInfo;
-import com.android.internal.telephony.CallerInfoAsyncQuery;
-import com.android.internal.telephony.cdma.CdmaCallWaitingNotification;
-import com.android.internal.telephony.cdma.SignalToneUtil;
-import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaDisplayInfoRec;
-import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaSignalInfoRec;
-import com.android.internal.telephony.Connection;
-import com.android.internal.telephony.Phone;
-import com.android.internal.telephony.PhoneBase;
-import com.android.internal.telephony.CallManager;
-
 import android.app.ActivityManagerNative;
 import android.content.Context;
 import android.media.AudioManager;
@@ -37,10 +25,8 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.PowerManager;
 import android.os.RemoteException;
-import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Vibrator;
-import android.provider.CallLog;
 import android.provider.CallLog.Calls;
 import android.provider.Settings;
 import android.telephony.PhoneNumberUtils;
@@ -50,10 +36,17 @@ import android.text.TextUtils;
 import android.util.EventLog;
 import android.util.Log;
 
-import android.hardware.SensorManager;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorEvent;
-import android.hardware.Sensor;
+import com.android.internal.telephony.Call;
+import com.android.internal.telephony.CallManager;
+import com.android.internal.telephony.CallerInfo;
+import com.android.internal.telephony.CallerInfoAsyncQuery;
+import com.android.internal.telephony.Connection;
+import com.android.internal.telephony.Phone;
+import com.android.internal.telephony.PhoneBase;
+import com.android.internal.telephony.cdma.CdmaCallWaitingNotification;
+import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaDisplayInfoRec;
+import com.android.internal.telephony.cdma.CdmaInformationRecords.CdmaSignalInfoRec;
+import com.android.internal.telephony.cdma.SignalToneUtil;
 
 
 /**
@@ -65,8 +58,7 @@ import android.hardware.Sensor;
 public class CallNotifier extends Handler
         implements CallerInfoAsyncQuery.OnQueryCompleteListener {
     private static final String LOG_TAG = "CallNotifier";
-    private static final boolean DBG =
-            (PhoneApp.DBG_LEVEL >= 1) && (SystemProperties.getInt("ro.debuggable", 0) == 1);
+    private static final boolean DBG = (PhoneApp.DBG_LEVEL >= 1);
     private static final boolean VDBG = (PhoneApp.DBG_LEVEL >= 2);
 
     // Maximum time we allow the CallerInfo query to run,
@@ -192,7 +184,6 @@ public class CallNotifier extends Handler
     public CallNotifier(PhoneApp app, Phone phone, Ringer ringer,
                         BluetoothHandsfree btMgr, CallLogAsync callLog) {
         mSettings = CallFeaturesSetting.getInstance(app);
-        //mSensorManager = (SensorManager) app.getSystemService(Context.SENSOR_SERVICE);
         mApplication = app;
         mCM = app.mCM;
         mCallLog = callLog;
@@ -425,12 +416,6 @@ public class CallNotifier extends Handler
             }
         }
 
-        if (c == null) {
-            Log.w(LOG_TAG, "CallNotifier.onNewRingingConnection(): null connection!");
-            // Should never happen, but if it does just bail out and do nothing.
-            return;
-        }
-
         if (!c.isRinging()) {
             Log.i(LOG_TAG, "CallNotifier.onNewRingingConnection(): connection not ringing!");
             // This is a very strange case: an incoming call that stopped
@@ -484,7 +469,7 @@ public class CallNotifier extends Handler
         if (PhoneUtils.isRealIncomingCall(state)) {
             startIncomingCallQuery(c);
         } else {
-            if (mSettings.mVibCallWaiting) {
+            if (CallFeaturesSetting.mVibCallWaiting) {
                 mApplication.vibrate(200,300,500);
             }
             if (VDBG) log("- starting call waiting tone...");
@@ -621,13 +606,14 @@ public class CallNotifier extends Handler
             return;
         }
 
+        // ...and display the incoming call to the user:
+        if (DBG) log("- showing incoming call (custom ring query complete)...");
+        showIncomingCall();
+        
         // Ring, either with the queried ringtone or default one.
         if (VDBG) log("RINGING... (onCustomRingQueryComplete)");
         startRinging();
 
-        // ...and display the incoming call to the user:
-        if (DBG) log("- showing incoming call (custom ring query complete)...");
-        showIncomingCall();
     }
 
     private void onUnknownConnectionAppeared(AsyncResult r) {
@@ -699,8 +685,9 @@ public class CallNotifier extends Handler
         // TODO: also, we should probably *not* do any of this if the
         // screen is already on(!)
 
-        // let the NotificationMgr know the original state of screen
-        NotificationMgr.getDefault().setScreenStateAtIncomingCall(mPowerManager.isScreenOn());
+        NotificationMgr.getDefault();
+		// let the NotificationMgr know the original state of screen
+        NotificationMgr.setScreenStateAtIncomingCall(mPowerManager.isScreenOn());
 
         mApplication.preventScreenOn(true);
         mApplication.requestWakeState(PhoneApp.WakeState.FULL);
@@ -773,10 +760,10 @@ public class CallNotifier extends Handler
             if (cstate == Call.State.ACTIVE && !c.isIncoming()) {
                 long callDurationMsec = c.getDurationMillis();
                 if (VDBG) Log.i(LOG_TAG, "duration is " + callDurationMsec);
-                if (mSettings.mVibOutgoing && callDurationMsec < 200) {
+                if (CallFeaturesSetting.mVibOutgoing && callDurationMsec < 200) {
                     mApplication.vibrate(100,0,0);
                 }
-                if (mSettings.mVib45) {
+                if (CallFeaturesSetting.mVib45) {
                     callDurationMsec = callDurationMsec % 60000;
                     mApplication.startVib45(callDurationMsec);
                 }
@@ -950,7 +937,7 @@ public class CallNotifier extends Handler
         if (VDBG) log("onDisconnect()...  CallManager state: " + mCM.getState());
 
         Connection c = (Connection) r.result;
-        if (DBG && c != null) {
+        if (DBG) {
             log("- onDisconnect: cause = " + c.getDisconnectCause()
                 + ", incoming = " + c.isIncoming()
                 + ", date = " + c.getCreateTime());
@@ -982,7 +969,7 @@ public class CallNotifier extends Handler
                 if (VDBG) Log.i(LOG_TAG, "in blacklist so skip calllog");
                 return;
             }
-            if (c.getDurationMillis() > 0 && mSettings.mVibHangup) {
+            if (c.getDurationMillis() > 0 && CallFeaturesSetting.mVibHangup) {
                 mApplication.vibrate(50, 100, 50);
             }
             if (!c.isIncoming()) {
