@@ -740,4 +740,13 @@
     <string name="hide_hold_button">保留ボタンを隠す</string>  
     <string name="hide_hold_button_sum">現在の通話を保留にするボタンを隠す</string>
 
+    <!-- Voice quality filter -->
+    <string name="voice_quality_preferences_title">音声品質</string>
+    <string name="voice_quality_summary">音声を聴き取りやすいように音声プロファイルを設定します</string>
+    <!-- Do not remove those, they're used from overlays -->
+    <string name="voice_quality_entry_normal">ノーマル</string>
+    <string name="voice_quality_entry_clear">クリア</string>
+    <string name="voice_quality_entry_crisp">クリスプ</string>
+    <string name="voice_quality_entry_bright">鮮明</string>
+
 </resources>
