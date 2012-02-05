@@ -773,7 +773,7 @@ public class InCallTouchUi extends FrameLayout
 
         int ringlockStyle = Settings.System.getInt(mContext.getContentResolver(),
                 Settings.System.RINGLOCK_STYLE_PREF,
-                RinglockStyle.getIdByStyle(RinglockStyle.Blade));
+                RinglockStyle.getIdByStyle(RinglockStyle.Bubble));
         int resRingGreen, resRingRed, resTargetGreen, resTargetRed, resAnswer, resDecline;
 
         switch (RinglockStyle.getStyleById(ringlockStyle)) {
