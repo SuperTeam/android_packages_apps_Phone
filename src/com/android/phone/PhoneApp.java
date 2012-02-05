@@ -188,11 +188,7 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
     // Gets updated whenever there is a Configuration change
     private boolean mIsHardKeyboardOpen;
 
-    // Property that indicates that the device has
-    // a fixed keyboard (as oposite to a sliding one) 
-    // so keyboard is always open.
-    private static final boolean mIsKeyboardAlwaysOpen =
-       (SystemProperties.getInt("ro.product.has_fixed_keyboard", 0) == 1); 
+    private boolean mIsKeyboardAlwaysOpen;
 
     // True if we are beginning a call, but the phone state has not changed yet
     private boolean mBeginningCall;
@@ -542,6 +538,8 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
 
             // Read platform settings for TTY feature
             mTtyEnabled = getResources().getBoolean(R.bool.tty_enabled);
+
+            mIsKeyboardAlwaysOpen = getResources().getBoolean(R.bool.config_device_has_fixed_keyboard);
 
             mVoiceQualityParam = getResources().getString(R.string.voice_quality_param);
 
@@ -1250,7 +1248,7 @@ public class PhoneApp extends Application implements AccelerometerListener.Orien
                 boolean screenOnImmediately = (isHeadsetPlugged()
                             || PhoneUtils.isSpeakerOn(this)
                             || ((mBtHandsfree != null) && mBtHandsfree.isAudioOn())
-                            || (mIsKeyboardAlwaysOpen ? false : mIsHardKeyboardOpen) );
+                            || (mIsHardKeyboardOpen && !mIsKeyboardAlwaysOpen) );
                 // We do not keep the screen off when we are horizontal, but we do not force it
                 // on when we become horizontal until the proximity sensor goes negative.
                 boolean horizontal = (mOrientation == AccelerometerListener.ORIENTATION_HORIZONTAL);
